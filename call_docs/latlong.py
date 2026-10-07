@@ -1,0 +1,102 @@
+locations = [
+
+    # South / Southeast
+    {"name": "Koramangala", "lat": 12.9352, "lng": 77.6245},
+    {"name": "BTM Layout", "lat": 12.9140, "lng": 77.6103},
+    {"name": "HSR Layout", "lat": 12.9138, "lng": 77.6649},
+    {"name": "Jayanagar", "lat": 12.9217, "lng": 77.5878},
+    {"name": "JP Nagar", "lat": 12.9105, "lng": 77.5857},
+    {"name": "Banashankari", "lat": 12.9255, "lng": 77.5468},
+    {"name": "Basavanagudi", "lat": 12.9421, "lng": 77.5747},
+    {"name": "Bommanahalli", "lat": 12.9081, "lng": 77.6239},
+    {"name": "Bannerghatta Road", "lat": 12.8956, "lng": 77.6012},
+    {"name": "Arekere", "lat": 12.8852, "lng": 77.5969},
+    {"name": "Begur", "lat": 12.8784, "lng": 77.6378},
+    {"name": "Hulimavu", "lat": 12.8789, "lng": 77.6090},
+
+    # East / Southeast
+    {"name": "Indiranagar", "lat": 12.9778, "lng": 77.6393},
+    {"name": "Domlur", "lat": 12.9609, "lng": 77.6387},
+    {"name": "Ulsoor", "lat": 12.9779, "lng": 77.6248},
+    {"name": "HAL", "lat": 12.9600, "lng": 77.6500},
+    {"name": "CV Raman Nagar", "lat": 12.9856, "lng": 77.6639},
+    {"name": "Kaggadasapura", "lat": 12.9850, "lng": 77.6790},
+    {"name": "KR Puram", "lat": 13.0077, "lng": 77.6954},
+    {"name": "Mahadevapura", "lat": 12.9904, "lng": 77.6842},
+    {"name": "Whitefield", "lat": 12.9698, "lng": 77.7500},
+    {"name": "Kadugodi", "lat": 12.9986, "lng": 77.7631},
+    {"name": "Brookefield", "lat": 12.9697, "lng": 77.7158},
+    {"name": "Marathahalli", "lat": 12.9591, "lng": 77.6971},
+    {"name": "Bellandur", "lat": 12.9304, "lng": 77.6784},
+    {"name": "Kadubeesanahalli", "lat": 12.9380, "lng": 77.6910},
+    {"name": "Varthur", "lat": 12.9402, "lng": 77.7461},
+
+    # Electronic City / South
+    {"name": "Electronic City", "lat": 12.8399, "lng": 77.6770},
+    {"name": "Bommasandra", "lat": 12.8165, "lng": 77.6950},
+    {"name": "Hosur Road", "lat": 12.9000, "lng": 77.6100},
+    {"name": "Singasandra", "lat": 12.8795, "lng": 77.6440},
+    {"name": "Hosa Road", "lat": 12.8625, "lng": 77.6600},
+
+    # Central
+    {"name": "MG Road", "lat": 12.9756, "lng": 77.6066},
+    {"name": "Brigade Road", "lat": 12.9719, "lng": 77.6070},
+    {"name": "Richmond Town", "lat": 12.9616, "lng": 77.5993},
+    {"name": "Shivajinagar", "lat": 12.9857, "lng": 77.6057},
+    {"name": "Frazer Town", "lat": 12.9980, "lng": 77.6130},
+    {"name": "Cox Town", "lat": 12.9937, "lng": 77.6180},
+    {"name": "Vasanth Nagar", "lat": 12.9926, "lng": 77.5924},
+    {"name": "Cunningham Road", "lat": 12.9894, "lng": 77.5946},
+    {"name": "Palace Road", "lat": 12.9902, "lng": 77.5850},
+
+    # North
+    {"name": "Hebbal", "lat": 13.0358, "lng": 77.5970},
+    {"name": "Sanjay Nagar", "lat": 13.0380, "lng": 77.5800},
+    {"name": "Ganganagar", "lat": 13.0200, "lng": 77.5900},
+    {"name": "RT Nagar", "lat": 13.0190, "lng": 77.5940},
+    {"name": "Hennur", "lat": 13.0258, "lng": 77.6300},
+    {"name": "Kalyan Nagar", "lat": 13.0230, "lng": 77.6400},
+    {"name": "HRBR Layout", "lat": 13.0235, "lng": 77.6390},
+    {"name": "Banaswadi", "lat": 13.0148, "lng": 77.6510},
+    {"name": "Nagawara", "lat": 13.0436, "lng": 77.6200},
+    {"name": "Jakkur", "lat": 13.0785, "lng": 77.6069},
+    {"name": "Yelahanka", "lat": 13.1005, "lng": 77.5963},
+    {"name": "Hesaraghatta", "lat": 13.1719, "lng": 77.4910},
+    {"name": "Thanisandra", "lat": 13.0550, "lng": 77.6200},
+
+    # West / Northwest
+    {"name": "Malleshwaram", "lat": 13.0081, "lng": 77.5648},
+    {"name": "Rajajinagar", "lat": 13.0100, "lng": 77.5520},
+    {"name": "Vijayanagar", "lat": 12.9719, "lng": 77.5300},
+    {"name": "Basaveshwaranagar", "lat": 12.9967, "lng": 77.5390},
+    {"name": "Nagarbhavi", "lat": 12.9600, "lng": 77.5100},
+    {"name": "Kengeri", "lat": 12.9000, "lng": 77.4833},
+    {"name": "Peenya", "lat": 13.0325, "lng": 77.5200},
+    {"name": "Jalahalli", "lat": 13.0543, "lng": 77.5390},
+    {"name": "Kamakshipalya", "lat": 12.9925, "lng": 77.5420},
+    {"name": "Magadi Road", "lat": 12.9573, "lng": 77.5545},
+    {"name": "Bharatnagar", "lat": 13.0010, "lng": 77.5350},
+    {"name": "Byadarahalli", "lat": 12.9880, "lng": 77.5200},
+    {"name": "Tunganagar", "lat": 13.0130, "lng": 77.5480},
+    {"name": "Gollarahatti", "lat": 12.8980, "lng": 77.5390},
+    {"name": "Mathikere", "lat": 13.0330, "lng": 77.5640},
+
+    # Additional commercial/residential areas
+    {"name": "JP Nagar 7th Phase", "lat": 12.8970, "lng": 77.5860},
+    {"name": "Jeevan Bima Nagar", "lat": 12.9670, "lng": 77.6590},
+    {"name": "Murugeshpalya", "lat": 12.9580, "lng": 77.6530},
+    {"name": "Ejipura", "lat": 12.9433, "lng": 77.6227},
+    {"name": "Madiwala", "lat": 12.9211, "lng": 77.6134},
+    {"name": "Adugodi", "lat": 12.9420, "lng": 77.6100},
+    {"name": "Wilson Garden", "lat": 12.9500, "lng": 77.5900},
+    {"name": "Shanti Nagar", "lat": 12.9550, "lng": 77.5930},
+    {"name": "Seshadripuram", "lat": 12.9930, "lng": 77.5740},
+    {"name": "Gandhi Nagar", "lat": 12.9760, "lng": 77.5730},
+    {"name": "Majestic", "lat": 12.9767, "lng": 77.5713},
+
+
+    {"name": "Chandra Layout", "lat": 12.9716, "lng": 77.5946},
+    {"name": "Sahakara Nagar", "lat": 13.0220, "lng": 77.5560},
+    {"name": "Kumaraswamy Layout", "lat": 12.9350, "lng": 77.5600},
+    {"name": "Ramohalli", "lat": 12.9100, "lng": 77.5800}
+]

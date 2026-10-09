@@ -1,0 +1,16 @@
+project_id = "horeca-sales-tracker"
+
+[auth]
+enabled = true
+site_url = "env(SUPABASE_AUTH_SITE_URL)"
+additional_redirect_urls = [
+  "http://localhost:5173",
+  "http://127.0.0.1:5173",
+]
+enable_signup = true
+
+[auth.email]
+enable_signup = true
+double_confirm_changes = true
+enable_confirmations = false
+secure_password_change = true

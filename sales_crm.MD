@@ -10,6 +10,7 @@ The working application is in [`sales-tracker/`](./sales-tracker/). It is a Reac
 - Email/password sign-in and sign-up. The database trigger creates new profiles as `staff`; admin promotion is a separate privileged operation.
 - Role-based access for admins and staff, enforced by Supabase row-level security. Staff can access their assigned contacts; admins can access all contacts.
 - CSV import with Indian mobile-number normalization, invalid-row handling, duplicate review, and choices to merge/keep/ignore.
+- Skipped CSV records remain visible after import with their reasons and original values, and can be downloaded as a CSV log.
 - Admin dashboard with clickable metric cards and detail views for contacts/calls; category, zone, status, and assignee filters; bulk assignment and unassignment. Call action items are Interested, Not Interested, Wrong Number, and No Answer / Callback; outcomes are Quote Sent, Followup Required, Order Placed, Meeting Requested, Try Again Later, and Callback Requested.
 - A single Staff Activity card on the admin dashboard opens a staff list; selecting an individual opens a full-screen report with current assignments, lead status counts, all-time call outcomes/actions, call history, and CSV/PDF downloads. The dashboard also alerts when active staff have no assigned contacts or no remaining contacts in Not Contacted status.
 - Dashboard card groups use vertical lists with expand/collapse controls.

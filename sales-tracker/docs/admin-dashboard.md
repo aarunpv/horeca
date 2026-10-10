@@ -19,6 +19,7 @@ The admin dashboard displays **New staff assignments may be needed** when an act
 
 ## Downloading reports
 
+- After a CSV import, any skipped records are listed on the dashboard with their record number, skip reason, and original CSV column values. Use **Download skipped rows CSV** to save the full log.
 - The **Download CSV** and **Download PDF** controls above the contact filters export only leads matching the current search, category, zone, status, and assignee filters.
 - The controls inside a staff activity view export that staff member's current assignments and all-time call history together. The CSV identifies each row as an assignment or a call.
 - Reports are generated in the browser. The CSV can be opened in spreadsheet software; the PDF is a downloadable landscape summary.

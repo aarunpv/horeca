@@ -1,4 +1,5 @@
 export interface RawCsvRow {
+  [column: string]: string | undefined;
   Category?: string;
   Zone?: string;
   Name?: string;
@@ -22,7 +23,7 @@ export interface NormalizedContact {
 export interface ParseResult {
   validContacts: NormalizedContact[];
   inFileDataDuplicates: NormalizedContact[];
-  invalidRows: { row: RawCsvRow; reason: string }[];
+  invalidRows: { row: RawCsvRow; reason: string; recordNumber: number }[];
 }
 
 export function normalizeIndianPhone(rawPhone: string): { normalized: string; isValid: boolean } {
@@ -45,18 +46,31 @@ export function processCsvBatch(rows: RawCsvRow[]): ParseResult {
   const seenPhoneNumbers = new Set<string>();
   const validContacts: NormalizedContact[] = [];
   const inFileDataDuplicates: NormalizedContact[] = [];
-  const invalidRows: { row: RawCsvRow; reason: string }[] = [];
+  const invalidRows: ParseResult["invalidRows"] = [];
 
-  for (const row of rows) {
-    if (!row.Phone || !row.Name) {
-      invalidRows.push({ row, reason: "Missing Name or Phone" });
+  for (const [index, row] of rows.entries()) {
+    const recordNumber = index + 1;
+    if (!row.Name?.trim() || !row.Phone?.trim()) {
+      const missingFields = [
+        !row.Name?.trim() && "Name",
+        !row.Phone?.trim() && "Phone",
+      ].filter(Boolean);
+      invalidRows.push({
+        row,
+        reason: `Missing ${missingFields.join(" and ")}`,
+        recordNumber,
+      });
       continue;
     }
 
     const { normalized, isValid } = normalizeIndianPhone(row.Phone);
 
     if (!isValid) {
-      invalidRows.push({ row, reason: `Invalid Indian mobile format: ${row.Phone}` });
+      invalidRows.push({
+        row,
+        reason: `Invalid Indian mobile format: ${row.Phone}`,
+        recordNumber,
+      });
       continue;
     }
 

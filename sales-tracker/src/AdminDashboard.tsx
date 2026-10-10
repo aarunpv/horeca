@@ -42,7 +42,6 @@ type StaffActivityCall = MetricCall;
 type PendingImport = {
   uniqueContacts: NormalizedContact[];
   duplicateGroups: ImportDuplicateGroup[];
-  invalidCount: number;
 };
 
 export const AdminDashboard: React.FC = () => {
@@ -61,6 +60,11 @@ export const AdminDashboard: React.FC = () => {
   const [isUploading, setIsUploading] = useState<boolean>(false);
   const [uploadFeedback, setUploadFeedback] = useState<string | null>(null);
   const [pendingImport, setPendingImport] = useState<PendingImport | null>(null);
+  const [skippedImportRows, setSkippedImportRows] = useState<{
+    rows: { row: RawCsvRow; reason: string; recordNumber: number }[];
+    headers: string[];
+    fileName: string;
+  } | null>(null);
   const [duplicateChoices, setDuplicateChoices] = useState<Record<string, DuplicateChoice>>({});
   const [dashboardError, setDashboardError] = useState<string | null>(null);
   const [selectedMetric, setSelectedMetric] = useState<MetricKey | null>(null);
@@ -451,6 +455,7 @@ export const AdminDashboard: React.FC = () => {
     if (!file) return;
 
     setIsUploading(true);
+    setSkippedImportRows(null);
     setUploadFeedback("Parsing CSV...");
 
     Papa.parse<RawCsvRow>(file, {
@@ -459,6 +464,15 @@ export const AdminDashboard: React.FC = () => {
       complete: async (results) => {
         try {
           const { validContacts, inFileDataDuplicates, invalidRows } = processCsvBatch(results.data);
+          setSkippedImportRows(
+            invalidRows.length > 0
+              ? {
+                  rows: invalidRows,
+                  headers: results.meta.fields || Object.keys(invalidRows[0].row),
+                  fileName: file.name.replace(/\.csv$/i, ""),
+                }
+              : null
+          );
           const allContacts = [...validContacts, ...inFileDataDuplicates];
           const contactsByPhone = new Map<string, NormalizedContact[]>();
           allContacts.forEach((contact) => {
@@ -481,13 +495,13 @@ export const AdminDashboard: React.FC = () => {
           });
 
           if (duplicateGroups.length > 0) {
-            setPendingImport({ uniqueContacts, duplicateGroups, invalidCount: invalidRows.length });
+            setPendingImport({ uniqueContacts, duplicateGroups });
             setDuplicateChoices(
               Object.fromEntries(duplicateGroups.map(({ phone }) => [phone, "merge" as DuplicateChoice]))
             );
           } else {
             if (uniqueContacts.length > 0) await insertContactsBatch(uniqueContacts);
-            setUploadFeedback(`Import complete: ${uniqueContacts.length} added, ${invalidRows.length} invalid.`);
+            setUploadFeedback(`Import complete: ${uniqueContacts.length} added, ${invalidRows.length} skipped.`);
             await loadData();
           }
         } catch (err: unknown) {
@@ -515,9 +529,7 @@ export const AdminDashboard: React.FC = () => {
       });
       const contactsToInsert = [...pendingImport.uniqueContacts, ...selectedDuplicates];
       if (contactsToInsert.length > 0) await insertContactsBatch(contactsToInsert);
-      setUploadFeedback(
-        `Import complete: ${contactsToInsert.length} added, ${pendingImport.invalidCount} invalid.`
-      );
+      setUploadFeedback(`Import complete: ${contactsToInsert.length} added, ${skippedImportRows?.rows.length || 0} skipped.`);
       setPendingImport(null);
       setDuplicateChoices({});
       await loadData();
@@ -556,6 +568,66 @@ export const AdminDashboard: React.FC = () => {
             <span>{uploadFeedback}</span>
             <button onClick={() => setUploadFeedback(null)} className="text-blue-500 font-bold ml-4">✕</button>
           </div>
+        )}
+
+        {skippedImportRows && (
+          <section className="w-full border border-amber-300 bg-amber-50 p-3 sm:p-4" aria-labelledby="skipped-import-rows-title">
+            <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
+              <div>
+                <h2 id="skipped-import-rows-title" className="text-sm font-bold text-amber-950">
+                  {skippedImportRows.rows.length} skipped CSV {skippedImportRows.rows.length === 1 ? "record" : "records"}
+                </h2>
+                <p className="mt-1 text-xs text-amber-900">
+                  These records were not imported. Review the reason and original values below.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  const rows = skippedImportRows.rows.map(({ row, reason, recordNumber }) => ({
+                    "CSV record": String(recordNumber),
+                    "Import skip reason": reason,
+                    ...Object.fromEntries(
+                      skippedImportRows.headers.map((header) => [`CSV: ${header}`, row[header] || ""])
+                    ),
+                  }));
+                  const fileBase = skippedImportRows.fileName.replace(/[^a-zA-Z0-9_-]+/g, "-") || "import";
+                  downloadCsvReport(`skipped-rows-${fileBase}.csv`, rows);
+                }}
+                className="min-h-10 shrink-0 border border-amber-700 bg-white px-3 py-2 text-xs font-semibold text-amber-950 hover:bg-amber-100"
+              >
+                Download skipped rows CSV
+              </button>
+            </div>
+            <div className="mt-3 max-h-96 overflow-auto border border-amber-200 bg-white">
+              <table className="min-w-full border-collapse text-left text-xs">
+                <thead className="sticky top-0 bg-amber-100 text-amber-950">
+                  <tr>
+                    <th scope="col" className="whitespace-nowrap border-b border-amber-200 px-3 py-2">Record</th>
+                    <th scope="col" className="min-w-48 border-b border-amber-200 px-3 py-2">Skip reason</th>
+                    {skippedImportRows.headers.map((header) => (
+                      <th key={header} scope="col" className="min-w-32 whitespace-nowrap border-b border-amber-200 px-3 py-2">
+                        {header}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {skippedImportRows.rows.map(({ row, reason, recordNumber }) => (
+                    <tr key={recordNumber} className="align-top odd:bg-white even:bg-gray-50">
+                      <td className="whitespace-nowrap border-b border-gray-200 px-3 py-2 font-mono">{recordNumber}</td>
+                      <td className="min-w-48 border-b border-gray-200 px-3 py-2 font-medium">{reason}</td>
+                      {skippedImportRows.headers.map((header) => (
+                        <td key={header} className="min-w-32 border-b border-gray-200 px-3 py-2">
+                          {row[header] || "—"}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
         )}
 
         {stats && (
@@ -1240,7 +1312,7 @@ export const AdminDashboard: React.FC = () => {
             </div>
             <div className="mt-5 flex flex-col-reverse sm:flex-row sm:items-center sm:justify-between gap-3">
               <p className="text-xs text-gray-500">
-                {pendingImport.uniqueContacts.length} unique contacts will be added; {pendingImport.invalidCount} invalid rows will be skipped.
+                {pendingImport.uniqueContacts.length} unique contacts will be added; skipped records are listed on the dashboard after this review.
               </p>
               <button
                 type="button"

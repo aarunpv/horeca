@@ -42,6 +42,15 @@ type StaffActivityCall = MetricCall;
 type PendingImport = {
   uniqueContacts: NormalizedContact[];
   duplicateGroups: ImportDuplicateGroup[];
+  headers: string[];
+  fileName: string;
+};
+type DuplicateImportAuditRow = {
+  row: RawCsvRow;
+  recordNumber: number;
+  phone: string;
+  resolution: string;
+  result: "Imported" | "Skipped";
 };
 
 export const AdminDashboard: React.FC = () => {
@@ -62,6 +71,11 @@ export const AdminDashboard: React.FC = () => {
   const [pendingImport, setPendingImport] = useState<PendingImport | null>(null);
   const [skippedImportRows, setSkippedImportRows] = useState<{
     rows: { row: RawCsvRow; reason: string; recordNumber: number }[];
+    headers: string[];
+    fileName: string;
+  } | null>(null);
+  const [duplicateImportLog, setDuplicateImportLog] = useState<{
+    rows: DuplicateImportAuditRow[];
     headers: string[];
     fileName: string;
   } | null>(null);
@@ -456,6 +470,7 @@ export const AdminDashboard: React.FC = () => {
 
     setIsUploading(true);
     setSkippedImportRows(null);
+    setDuplicateImportLog(null);
     setUploadFeedback("Parsing CSV...");
 
     Papa.parse<RawCsvRow>(file, {
@@ -495,7 +510,12 @@ export const AdminDashboard: React.FC = () => {
           });
 
           if (duplicateGroups.length > 0) {
-            setPendingImport({ uniqueContacts, duplicateGroups });
+            setPendingImport({
+              uniqueContacts,
+              duplicateGroups,
+              headers: results.meta.fields || Object.keys(results.data[0] || {}),
+              fileName: file.name.replace(/\.csv$/i, ""),
+            });
             setDuplicateChoices(
               Object.fromEntries(duplicateGroups.map(({ phone }) => [phone, "merge" as DuplicateChoice]))
             );
@@ -522,6 +542,48 @@ export const AdminDashboard: React.FC = () => {
     if (!pendingImport) return;
     setIsUploading(true);
     try {
+      const duplicateAuditRows = pendingImport.duplicateGroups.flatMap((group) => {
+        const choice = duplicateChoices[group.phone] || "merge";
+        return group.contacts.map((contact, index): DuplicateImportAuditRow => {
+          if (choice === "ignore") {
+            return {
+              row: contact.sourceRow,
+              recordNumber: contact.sourceRecordNumber,
+              phone: group.phone,
+              resolution: "Skipped by selection",
+              result: "Skipped",
+            };
+          }
+          if (choice === "keep") {
+            return {
+              row: contact.sourceRow,
+              recordNumber: contact.sourceRecordNumber,
+              phone: group.phone,
+              resolution: "Imported all duplicate CSV rows",
+              result: "Imported",
+            };
+          }
+          if (group.existsInDb) {
+            return {
+              row: contact.sourceRow,
+              recordNumber: contact.sourceRecordNumber,
+              phone: group.phone,
+              resolution: "Matching phone already exists in database; CSV row not imported",
+              result: "Skipped",
+            };
+          }
+          const isFirst = index === 0;
+          return {
+            row: contact.sourceRow,
+            recordNumber: contact.sourceRecordNumber,
+            phone: group.phone,
+            resolution: isFirst
+              ? "First CSV row kept for this phone"
+              : "Duplicate CSV row skipped; first row kept",
+            result: isFirst ? "Imported" : "Skipped",
+          };
+        });
+      });
       const selectedDuplicates = pendingImport.duplicateGroups.flatMap((group) => {
         const choice = duplicateChoices[group.phone] || "merge";
         if (choice === "ignore" || (choice === "merge" && group.existsInDb)) return [];
@@ -529,7 +591,19 @@ export const AdminDashboard: React.FC = () => {
       });
       const contactsToInsert = [...pendingImport.uniqueContacts, ...selectedDuplicates];
       if (contactsToInsert.length > 0) await insertContactsBatch(contactsToInsert);
-      setUploadFeedback(`Import complete: ${contactsToInsert.length} added, ${skippedImportRows?.rows.length || 0} skipped.`);
+      const skippedDuplicateCount = duplicateAuditRows.filter((row) => row.result === "Skipped").length;
+      setUploadFeedback(
+        `Import complete: ${contactsToInsert.length} added, ${skippedImportRows?.rows.length || 0} invalid rows skipped, ${skippedDuplicateCount} duplicate rows skipped.`
+      );
+      setDuplicateImportLog(
+        duplicateAuditRows.length > 0
+          ? {
+              rows: duplicateAuditRows,
+              headers: pendingImport.headers,
+              fileName: pendingImport.fileName,
+            }
+          : null
+      );
       setPendingImport(null);
       setDuplicateChoices({});
       await loadData();
@@ -618,6 +692,72 @@ export const AdminDashboard: React.FC = () => {
                       <td className="whitespace-nowrap border-b border-gray-200 px-3 py-2 font-mono">{recordNumber}</td>
                       <td className="min-w-48 border-b border-gray-200 px-3 py-2 font-medium">{reason}</td>
                       {skippedImportRows.headers.map((header) => (
+                        <td key={header} className="min-w-32 border-b border-gray-200 px-3 py-2">
+                          {row[header] || "—"}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        )}
+
+        {duplicateImportLog && (
+          <section className="w-full border border-indigo-300 bg-indigo-50 p-3 sm:p-4" aria-labelledby="duplicate-import-log-title">
+            <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
+              <div>
+                <h2 id="duplicate-import-log-title" className="text-sm font-bold text-indigo-950">
+                  Duplicate import log ({duplicateImportLog.rows.length} CSV {duplicateImportLog.rows.length === 1 ? "record" : "records"})
+                </h2>
+                <p className="mt-1 text-xs text-indigo-900">
+                  Original CSV values and the import decision for each duplicate record.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  const rows = duplicateImportLog.rows.map(({ row, recordNumber, phone, resolution, result }) => ({
+                    "CSV record": String(recordNumber),
+                    "Normalized phone": phone,
+                    "Import result": result,
+                    "Duplicate decision": resolution,
+                    ...Object.fromEntries(
+                      duplicateImportLog.headers.map((header) => [`CSV: ${header}`, row[header] || ""])
+                    ),
+                  }));
+                  const fileBase = duplicateImportLog.fileName.replace(/[^a-zA-Z0-9_-]+/g, "-") || "import";
+                  downloadCsvReport(`duplicate-rows-${fileBase}.csv`, rows);
+                }}
+                className="min-h-10 shrink-0 border border-indigo-700 bg-white px-3 py-2 text-xs font-semibold text-indigo-950 hover:bg-indigo-100"
+              >
+                Download duplicate log CSV
+              </button>
+            </div>
+            <div className="mt-3 max-h-96 overflow-auto border border-indigo-200 bg-white">
+              <table className="min-w-full border-collapse text-left text-xs">
+                <thead className="sticky top-0 bg-indigo-100 text-indigo-950">
+                  <tr>
+                    <th scope="col" className="whitespace-nowrap border-b border-indigo-200 px-3 py-2">Record</th>
+                    <th scope="col" className="whitespace-nowrap border-b border-indigo-200 px-3 py-2">Normalized phone</th>
+                    <th scope="col" className="whitespace-nowrap border-b border-indigo-200 px-3 py-2">Import result</th>
+                    <th scope="col" className="min-w-56 border-b border-indigo-200 px-3 py-2">Duplicate decision</th>
+                    {duplicateImportLog.headers.map((header) => (
+                      <th key={header} scope="col" className="min-w-32 whitespace-nowrap border-b border-indigo-200 px-3 py-2">
+                        {header}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {duplicateImportLog.rows.map(({ row, recordNumber, phone, resolution, result }) => (
+                    <tr key={recordNumber} className="align-top odd:bg-white even:bg-gray-50">
+                      <td className="whitespace-nowrap border-b border-gray-200 px-3 py-2 font-mono">{recordNumber}</td>
+                      <td className="whitespace-nowrap border-b border-gray-200 px-3 py-2 font-mono">{phone}</td>
+                      <td className="whitespace-nowrap border-b border-gray-200 px-3 py-2 font-semibold">{result}</td>
+                      <td className="min-w-56 border-b border-gray-200 px-3 py-2">{resolution}</td>
+                      {duplicateImportLog.headers.map((header) => (
                         <td key={header} className="min-w-32 border-b border-gray-200 px-3 py-2">
                           {row[header] || "—"}
                         </td>
@@ -1267,7 +1407,7 @@ export const AdminDashboard: React.FC = () => {
                   Review duplicate phone numbers
                 </h2>
                 <p className="mt-1 text-sm text-gray-600">
-                  Choose how to handle each matching number. Merge keeps one record; Keep both imports every CSV row.
+                  Choose how to handle each matching number. No fields are combined into existing records; each CSV row and its decision will be logged after import.
                 </p>
               </div>
               <button
@@ -1303,9 +1443,15 @@ export const AdminDashboard: React.FC = () => {
                     }
                     className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm"
                   >
-                    <option value="merge">Merge / keep one</option>
-                    <option value="keep">Keep both</option>
-                    <option value="ignore">Ignore this number</option>
+                    <option value="merge">
+                      {group.existsInDb
+                        ? "Keep existing database record; skip CSV rows"
+                        : "Keep first CSV row; skip duplicate rows"}
+                    </option>
+                    <option value="keep">
+                      {group.existsInDb ? "Import all CSV rows anyway" : "Keep all CSV rows"}
+                    </option>
+                    <option value="ignore">Skip all CSV rows</option>
                   </select>
                 </div>
               ))}

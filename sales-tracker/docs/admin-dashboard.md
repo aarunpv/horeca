@@ -19,7 +19,8 @@ The admin dashboard displays **New staff assignments may be needed** when an act
 
 ## Downloading reports
 
-- After a CSV import, any skipped records are listed on the dashboard with their record number, skip reason, and original CSV column values. Use **Download skipped rows CSV** to save the full log.
+- After a CSV import, check the dashboard below the upload/status message for the import logs. Invalid/skipped records show their record number, reason, and original CSV values; duplicate records show the handling decision, import result, and original CSV values. Use **Download skipped rows CSV** or **Download duplicate log CSV** to save each log. The on-screen logs remain until another CSV is selected or the dashboard is reloaded.
+- For duplicate numbers, the default keeps the existing database record (if one exists), otherwise keeps the first CSV row and skips other rows with that number. This does not merge fields into an existing database row. The duplicate log makes each decision and each skipped value visible.
 - The **Download CSV** and **Download PDF** controls above the contact filters export only leads matching the current search, category, zone, status, and assignee filters.
 - The controls inside a staff activity view export that staff member's current assignments and all-time call history together. The CSV identifies each row as an assignment or a call.
 - Reports are generated in the browser. The CSV can be opened in spreadsheet software; the PDF is a downloadable landscape summary.

@@ -2,6 +2,8 @@
 
 The Supabase schema and email-auth settings live in version control. Do not paste SQL into the Supabase portal.
 
+For the full procedure, see [Supabase deployment](../docs/supabase-deployment.md).
+
 1. Use the existing Supabase project and note its project ref and database password.
 2. Add GitHub Actions secrets `SUPABASE_ACCESS_TOKEN`, `SUPABASE_DB_PASSWORD`, and `SUPABASE_PROJECT_ID` to this repository.
 3. Add the GitHub Actions variable `SUPABASE_AUTH_SITE_URL` with `https://horeca-bice.vercel.app`.

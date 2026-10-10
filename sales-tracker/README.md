@@ -6,6 +6,8 @@ Responsive, installable React PWA backed by Supabase Auth and Postgres. Staff ac
 
 The schema and Auth settings are version-controlled. The root GitHub Actions workflow pushes Auth configuration and applies migrations whenever `sales-tracker/supabase/` changes on `master`, or when manually dispatched. It does not require editing the Supabase project in the portal.
 
+See the step-by-step guides for [Vercel deployment](./docs/vercel-deployment.md) and [Supabase deployment](./docs/supabase-deployment.md).
+
 1. Use the existing Supabase project for this app. The included GitHub Actions workflow targets it using its project ref; no native Supabase GitHub integration is required.
 2. In the GitHub repository, add these Actions secrets:
    - `SUPABASE_ACCESS_TOKEN`: a Supabase personal access token for the deployment CLI.

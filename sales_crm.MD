@@ -1,6 +1,35 @@
 # Sales calls tracking PWA
 I want to setup a lightweight and responsive PWA (progressive web app)
 
+## Current implementation status (2026-10-10)
+
+The working application is in [`sales-tracker/`](./sales-tracker/). It is a React/Vite PWA using Supabase Auth and Postgres, with production URL <https://horeca-bice.vercel.app>.
+
+### Implemented
+
+- Email/password sign-in and sign-up. The database trigger creates new profiles as `staff`; admin promotion is a separate privileged operation.
+- Role-based access for admins and staff, enforced by Supabase row-level security. Staff can access their assigned contacts; admins can access all contacts.
+- CSV import with Indian mobile-number normalization, invalid-row handling, duplicate review, and choices to merge/keep/ignore.
+- Admin dashboard with clickable metric cards and detail views for contacts/calls; category, zone, status, and assignee filters; bulk assignment and unassignment.
+- Staff calling queue with a left-side filter menu, click-to-call, outcome/actions, notes, follow-up scheduling, Google Calendar event link, and append-only call history.
+- Responsive contact-card layouts for mobile, plus a PWA manifest, install icon, and service worker app-shell cache.
+- Supabase schema, RLS, Auth configuration, and GitHub Actions deployment workflow are maintained in source control.
+
+### Important current limitations
+
+- The PWA cannot read carrier call logs or automatically obtain answered state or call duration. Call outcomes are entered by staff. Accurate call telemetry requires a telephony provider integration.
+- The Google Calendar link opens a draft event; direct two-way calendar synchronization and automatic reminders are not implemented.
+- Dashboard metrics currently cover the implemented summaries; custom date-range reporting and the full reporting suite described below remain future work.
+- Admin user lifecycle management and full contact edit/delete screens are not yet implemented.
+- Supabase changes deploy through GitHub Actions when the deployment workflow and Supabase files are pushed to `master`; configuring the required GitHub secrets/variable is a prerequisite.
+
+### Deployment procedure guides
+
+- [Publish/update the PWA on Vercel](./sales-tracker/docs/vercel-deployment.md)
+- [Deploy Supabase schema and Auth configuration through GitHub](./sales-tracker/docs/supabase-deployment.md)
+
+The sections below retain the original product requirements and roadmap. Items not listed under “Implemented” above should be treated as requested/planned functionality, not as a claim that it is already available.
+
 I have a set of csv files containing the following headers
     Category,Zone,Name,Phone,Address,Rating,Reviews
 
@@ -188,7 +217,7 @@ Synchronize changes from calendar event with PWA
 
 ## Approach
 
-Phase 1
+Phase 1 (core parts implemented; see status above)
 
 CSV import
 Contact database
@@ -199,14 +228,14 @@ Notes
 Call history
 Follow-up date/time
 
-Phase 2
+Phase 2 (partially implemented; direct synchronization and reporting pending)
 
 Google Calendar "Add event"
 Follow-up dashboard
 Today's calls
 Overdue follow-ups
 
-Phase 3
+Phase 3 (planned)
 
 Direct Google Calendar integration
 Automatic reminders

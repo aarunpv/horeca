@@ -17,9 +17,11 @@ Calls remain attributed to the staff member who logged them. The assignment list
 
 The admin dashboard displays **New staff assignments may be needed** when an active staff member has no current assignments or has no assigned contacts left with **Not Contacted** status. The alert lists each staff member and their current assignment/remaining untouched counts, and links to the staff activity screen. Leads with other statuses, including scheduled callbacks, are not counted as untouched leads.
 
-## Downloading reports
+## Logs, audit, and reports
 
-- After a CSV import, check the dashboard below the upload/status message for the import logs. Invalid/skipped records show their record number, reason, and original CSV values; duplicate records show the handling decision, import result, and original CSV values. Use **Download skipped rows CSV** or **Download duplicate log CSV** to save each log. The on-screen logs remain until another CSV is selected or the dashboard is reloaded.
+- Select **Logs & Audit** in the admin dashboard header to open persistent application logs. Filter by **All logs**, **Errors**, **Audit**, or **Activity**, refresh, load older entries, and download the currently loaded entries as CSV.
+- Import validation/parser errors retain the original CSV values; duplicate decisions retain each source row, normalized phone, and whether it was imported or skipped. Import completion/failure, sign-in/sign-out, and opening a staff report are recorded as audit events. Contact assignment changes and staff call outcomes are recorded as activity events.
+- Event logs are admin-readable and append-only in the app. They remain in Supabase across browser sessions; only the application database owner can remove them. Deploy the `event_logs` migration using the GitHub Actions Supabase workflow before using the log viewer.
 - For duplicate numbers, the default keeps the existing database record (if one exists), otherwise keeps the first CSV row and skips other rows with that number. This does not merge fields into an existing database row. The duplicate log makes each decision and each skipped value visible.
 - The **Download CSV** and **Download PDF** controls above the contact filters export only leads matching the current search, category, zone, status, and assignee filters.
 - The controls inside a staff activity view export that staff member's current assignments and all-time call history together. The CSV identifies each row as an assignment or a call.

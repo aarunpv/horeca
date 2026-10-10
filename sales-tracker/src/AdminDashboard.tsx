@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import Papa from "papaparse";
 import {
   getAdminMetrics,
@@ -17,6 +17,12 @@ import { downloadCsvReport, downloadPdfReport } from "./reportExports";
 import { CollapsibleGroup } from "./CollapsibleGroup";
 import { ActivityCalendar } from "./ActivityCalendar";
 import { CALL_ACTION_ITEMS, normalizeCallActionItem, normalizeCallOutcome } from "./callOptions";
+import {
+  loadEventLogs,
+  writeEventLogs,
+  type EventLog,
+  type EventLogFilter,
+} from "./eventLogs";
 
 type DuplicateChoice = "merge" | "keep" | "ignore";
 type MetricKey =
@@ -45,14 +51,6 @@ type PendingImport = {
   headers: string[];
   fileName: string;
 };
-type DuplicateImportAuditRow = {
-  row: RawCsvRow;
-  recordNumber: number;
-  phone: string;
-  resolution: string;
-  result: "Imported" | "Skipped";
-};
-
 export const AdminDashboard: React.FC = () => {
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [staff, setStaff] = useState<StaffMember[]>([]);
@@ -69,17 +67,14 @@ export const AdminDashboard: React.FC = () => {
   const [isUploading, setIsUploading] = useState<boolean>(false);
   const [uploadFeedback, setUploadFeedback] = useState<string | null>(null);
   const [pendingImport, setPendingImport] = useState<PendingImport | null>(null);
-  const [skippedImportRows, setSkippedImportRows] = useState<{
-    rows: { row: RawCsvRow; reason: string; recordNumber: number }[];
-    headers: string[];
-    fileName: string;
-  } | null>(null);
-  const [duplicateImportLog, setDuplicateImportLog] = useState<{
-    rows: DuplicateImportAuditRow[];
-    headers: string[];
-    fileName: string;
-  } | null>(null);
   const [duplicateChoices, setDuplicateChoices] = useState<Record<string, DuplicateChoice>>({});
+  const [showLogs, setShowLogs] = useState(false);
+  const [logFilter, setLogFilter] = useState<EventLogFilter>("all");
+  const [eventLogs, setEventLogs] = useState<EventLog[]>([]);
+  const [logsLoading, setLogsLoading] = useState(false);
+  const [logsHasMore, setLogsHasMore] = useState(false);
+  const [logsError, setLogsError] = useState<string | null>(null);
+  const logsRequestId = useRef(0);
   const [dashboardError, setDashboardError] = useState<string | null>(null);
   const [selectedMetric, setSelectedMetric] = useState<MetricKey | null>(null);
   const [metricCalls, setMetricCalls] = useState<MetricCall[]>([]);
@@ -135,6 +130,27 @@ export const AdminDashboard: React.FC = () => {
   useEffect(() => {
     loadData();
   }, []);
+
+  const fetchEventLogs = async (filter: EventLogFilter, offset: number) => {
+    const requestId = ++logsRequestId.current;
+    if (offset === 0) {
+      setEventLogs([]);
+      setLogsHasMore(false);
+    }
+    setLogsLoading(true);
+    setLogsError(null);
+    try {
+      const result = await loadEventLogs(filter, offset);
+      if (requestId !== logsRequestId.current) return;
+      setEventLogs((current) => (offset === 0 ? result.logs : [...current, ...result.logs]));
+      setLogsHasMore(result.hasMore);
+    } catch (error: unknown) {
+      if (requestId !== logsRequestId.current) return;
+      setLogsError(error instanceof Error ? error.message : "Could not load event logs.");
+    } finally {
+      if (requestId === logsRequestId.current) setLogsLoading(false);
+    }
+  };
 
   const zones = useMemo(() => {
     const list = Array.from(new Set(contacts.map((c) => c.zone).filter(Boolean)));
@@ -302,8 +318,18 @@ export const AdminDashboard: React.FC = () => {
         if (page.length < pageSize) break;
       }
       setStaffActivityCalls(calls);
+      await writeEventLogs([{
+        event_category: "audit",
+        action: "staff.activity.report_viewed",
+        message: `Viewed activity report for ${member.name}.`,
+        details: { staff_id: member.id, staff_name: member.name },
+      }]);
     } catch (error: unknown) {
-      setStaffActivityError(error instanceof Error ? error.message : "Could not load staff activity.");
+      setStaffActivityError(
+        error instanceof Error
+          ? `Could not load or audit the staff activity report: ${error.message}`
+          : "Could not load or audit the staff activity report."
+      );
     } finally {
       setIsStaffActivityLoading(false);
     }
@@ -469,25 +495,38 @@ export const AdminDashboard: React.FC = () => {
     if (!file) return;
 
     setIsUploading(true);
-    setSkippedImportRows(null);
-    setDuplicateImportLog(null);
     setUploadFeedback("Parsing CSV...");
 
     Papa.parse<RawCsvRow>(file, {
       header: true,
       skipEmptyLines: true,
       complete: async (results) => {
+        let importCommitted = false;
         try {
           const { validContacts, inFileDataDuplicates, invalidRows } = processCsvBatch(results.data);
-          setSkippedImportRows(
-            invalidRows.length > 0
-              ? {
-                  rows: invalidRows,
-                  headers: results.meta.fields || Object.keys(invalidRows[0].row),
-                  fileName: file.name.replace(/\.csv$/i, ""),
-                }
-              : null
-          );
+          await writeEventLogs([
+            ...invalidRows.map(({ row, reason, recordNumber }) => ({
+              event_category: "error" as const,
+              action: "csv.row.skipped",
+              message: reason,
+              details: {
+                file_name: file.name,
+                csv_record: recordNumber,
+                values: row,
+              },
+            })),
+            ...results.errors.map((error) => ({
+              event_category: "error" as const,
+              action: "csv.parse.warning",
+              message: error.message,
+              details: {
+                file_name: file.name,
+                row: error.row,
+                code: error.code,
+                type: error.type,
+              },
+            })),
+          ]);
           const allContacts = [...validContacts, ...inFileDataDuplicates];
           const contactsByPhone = new Map<string, NormalizedContact[]>();
           allContacts.forEach((contact) => {
@@ -521,11 +560,37 @@ export const AdminDashboard: React.FC = () => {
             );
           } else {
             if (uniqueContacts.length > 0) await insertContactsBatch(uniqueContacts);
-            setUploadFeedback(`Import complete: ${uniqueContacts.length} added, ${invalidRows.length} skipped.`);
+            importCommitted = true;
+            await writeEventLogs([{
+              event_category: "audit",
+              action: "csv.import.completed",
+              message: `Imported ${uniqueContacts.length} contacts from ${file.name}.`,
+              details: {
+                file_name: file.name,
+                imported_count: uniqueContacts.length,
+                invalid_count: invalidRows.length,
+                duplicate_group_count: 0,
+              },
+            }]);
+            setUploadFeedback(`Import complete: ${uniqueContacts.length} added, ${invalidRows.length} invalid rows skipped.`);
             await loadData();
           }
         } catch (err: unknown) {
-          setUploadFeedback(`Import failed: ${err instanceof Error ? err.message : "Unknown error."}`);
+          const message = err instanceof Error ? err.message : "Unknown error.";
+          let logFailure = "";
+          try {
+            await writeEventLogs([{
+              event_category: "error",
+              action: "csv.import.failed",
+              message,
+              details: { file_name: file.name, import_already_committed: importCommitted },
+            }]);
+          } catch (logError: unknown) {
+            logFailure = ` Import error could not be saved to Logs & Audit: ${logError instanceof Error ? logError.message : "Unknown logging error."}`;
+          }
+          setUploadFeedback(
+            `${importCommitted ? "Import completed, but a follow-up operation failed" : "Import failed"}: ${message}${logFailure}`
+          );
         } finally {
           setIsUploading(false);
           e.target.value = "";
@@ -534,6 +599,16 @@ export const AdminDashboard: React.FC = () => {
       error: (err) => {
         setUploadFeedback(`Parsing failed: ${err.message}`);
         setIsUploading(false);
+        void writeEventLogs([{
+          event_category: "error",
+          action: "csv.parse.failed",
+          message: err.message,
+          details: { file_name: file.name },
+        }]).catch((logError: unknown) => {
+          setUploadFeedback(
+            `Parsing failed: ${err.message}. The error could not be saved to Logs & Audit: ${logError instanceof Error ? logError.message : "Unknown logging error."}`
+          );
+        });
       },
     });
   };
@@ -541,46 +616,41 @@ export const AdminDashboard: React.FC = () => {
   const handleConfirmImport = async () => {
     if (!pendingImport) return;
     setIsUploading(true);
+    let importCommitted = false;
     try {
-      const duplicateAuditRows = pendingImport.duplicateGroups.flatMap((group) => {
+      const duplicateEvents = pendingImport.duplicateGroups.flatMap((group) => {
         const choice = duplicateChoices[group.phone] || "merge";
-        return group.contacts.map((contact, index): DuplicateImportAuditRow => {
+        return group.contacts.map((contact, index) => {
+          let resolution: string;
+          let result: "Imported" | "Skipped";
           if (choice === "ignore") {
-            return {
-              row: contact.sourceRow,
-              recordNumber: contact.sourceRecordNumber,
-              phone: group.phone,
-              resolution: "Skipped by selection",
-              result: "Skipped",
-            };
-          }
-          if (choice === "keep") {
-            return {
-              row: contact.sourceRow,
-              recordNumber: contact.sourceRecordNumber,
-              phone: group.phone,
-              resolution: "Imported all duplicate CSV rows",
-              result: "Imported",
-            };
-          }
-          if (group.existsInDb) {
-            return {
-              row: contact.sourceRow,
-              recordNumber: contact.sourceRecordNumber,
-              phone: group.phone,
-              resolution: "Matching phone already exists in database; CSV row not imported",
-              result: "Skipped",
-            };
-          }
-          const isFirst = index === 0;
-          return {
-            row: contact.sourceRow,
-            recordNumber: contact.sourceRecordNumber,
-            phone: group.phone,
-            resolution: isFirst
+            resolution = "Skipped by selection";
+            result = "Skipped";
+          } else if (choice === "keep") {
+            resolution = "Imported all duplicate CSV rows";
+            result = "Imported";
+          } else if (group.existsInDb) {
+            resolution = "Matching phone already exists in database; CSV row not imported";
+            result = "Skipped";
+          } else {
+            const isFirst = index === 0;
+            resolution = isFirst
               ? "First CSV row kept for this phone"
-              : "Duplicate CSV row skipped; first row kept",
-            result: isFirst ? "Imported" : "Skipped",
+              : "Duplicate CSV row skipped; first row kept";
+            result = isFirst ? "Imported" : "Skipped";
+          }
+          return {
+            event_category: result === "Skipped" ? "error" as const : "audit" as const,
+            action: result === "Skipped" ? "csv.duplicate.skipped" : "csv.duplicate.kept",
+            message: resolution,
+            details: {
+              file_name: pendingImport.fileName,
+              csv_record: contact.sourceRecordNumber,
+              normalized_phone: group.phone,
+              import_result: result,
+              duplicate_decision: resolution,
+              values: contact.sourceRow,
+            },
           };
         });
       });
@@ -591,24 +661,47 @@ export const AdminDashboard: React.FC = () => {
       });
       const contactsToInsert = [...pendingImport.uniqueContacts, ...selectedDuplicates];
       if (contactsToInsert.length > 0) await insertContactsBatch(contactsToInsert);
-      const skippedDuplicateCount = duplicateAuditRows.filter((row) => row.result === "Skipped").length;
+      importCommitted = true;
+      const skippedDuplicateCount = duplicateEvents.filter((event) => event.event_category === "error").length;
+      await writeEventLogs([
+        ...duplicateEvents,
+        {
+          event_category: "audit",
+          action: "csv.import.completed",
+          message: `Imported ${contactsToInsert.length} contacts from ${pendingImport.fileName}.`,
+          details: {
+            file_name: pendingImport.fileName,
+            imported_count: contactsToInsert.length,
+            duplicate_group_count: pendingImport.duplicateGroups.length,
+            duplicate_rows_skipped: skippedDuplicateCount,
+          },
+        },
+      ]);
       setUploadFeedback(
-        `Import complete: ${contactsToInsert.length} added, ${skippedImportRows?.rows.length || 0} invalid rows skipped, ${skippedDuplicateCount} duplicate rows skipped.`
-      );
-      setDuplicateImportLog(
-        duplicateAuditRows.length > 0
-          ? {
-              rows: duplicateAuditRows,
-              headers: pendingImport.headers,
-              fileName: pendingImport.fileName,
-            }
-          : null
+        `Import complete: ${contactsToInsert.length} added, duplicate rows skipped: ${skippedDuplicateCount}.`
       );
       setPendingImport(null);
       setDuplicateChoices({});
       await loadData();
     } catch (err: unknown) {
-      setUploadFeedback(`Import failed: ${err instanceof Error ? err.message : "Unknown error."}`);
+      const message = err instanceof Error ? err.message : "Unknown error.";
+      let logFailure = "";
+      try {
+        await writeEventLogs([{
+          event_category: "error",
+          action: "csv.import.failed",
+          message,
+          details: {
+            file_name: pendingImport.fileName,
+            import_already_committed: importCommitted,
+          },
+        }]);
+      } catch (logError: unknown) {
+        logFailure = ` The import failure could not be saved to Logs & Audit: ${logError instanceof Error ? logError.message : "Unknown logging error."}`;
+      }
+      setUploadFeedback(
+        `${importCommitted ? "Import completed, but logging or refresh failed" : "Import failed"}: ${message}${logFailure}`
+      );
     } finally {
       setIsUploading(false);
     }
@@ -623,10 +716,22 @@ export const AdminDashboard: React.FC = () => {
             <p className="text-xs text-gray-500">Lead Ingestion & Territory Distribution</p>
           </div>
 
-          <label className="cursor-pointer inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-xs transition">
-            <span>{isUploading ? "Uploading..." : "Upload CSV"}</span>
-            <input type="file" accept=".csv" className="hidden" disabled={isUploading} onChange={handleFileUpload} />
-          </label>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                setShowLogs(true);
+                void fetchEventLogs(logFilter, 0);
+              }}
+              className="min-h-10 border border-gray-300 bg-white px-3 py-2 text-xs font-bold text-gray-800 hover:bg-gray-100"
+            >
+              Logs &amp; Audit
+            </button>
+            <label className="cursor-pointer inline-flex min-h-10 items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-xs transition">
+              <span>{isUploading ? "Uploading..." : "Upload CSV"}</span>
+              <input type="file" accept=".csv" className="hidden" disabled={isUploading} onChange={handleFileUpload} />
+            </label>
+          </div>
         </div>
       </header>
 
@@ -642,132 +747,6 @@ export const AdminDashboard: React.FC = () => {
             <span>{uploadFeedback}</span>
             <button onClick={() => setUploadFeedback(null)} className="text-blue-500 font-bold ml-4">✕</button>
           </div>
-        )}
-
-        {skippedImportRows && (
-          <section className="w-full border border-amber-300 bg-amber-50 p-3 sm:p-4" aria-labelledby="skipped-import-rows-title">
-            <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
-              <div>
-                <h2 id="skipped-import-rows-title" className="text-sm font-bold text-amber-950">
-                  {skippedImportRows.rows.length} skipped CSV {skippedImportRows.rows.length === 1 ? "record" : "records"}
-                </h2>
-                <p className="mt-1 text-xs text-amber-900">
-                  These records were not imported. Review the reason and original values below.
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  const rows = skippedImportRows.rows.map(({ row, reason, recordNumber }) => ({
-                    "CSV record": String(recordNumber),
-                    "Import skip reason": reason,
-                    ...Object.fromEntries(
-                      skippedImportRows.headers.map((header) => [`CSV: ${header}`, row[header] || ""])
-                    ),
-                  }));
-                  const fileBase = skippedImportRows.fileName.replace(/[^a-zA-Z0-9_-]+/g, "-") || "import";
-                  downloadCsvReport(`skipped-rows-${fileBase}.csv`, rows);
-                }}
-                className="min-h-10 shrink-0 border border-amber-700 bg-white px-3 py-2 text-xs font-semibold text-amber-950 hover:bg-amber-100"
-              >
-                Download skipped rows CSV
-              </button>
-            </div>
-            <div className="mt-3 max-h-96 overflow-auto border border-amber-200 bg-white">
-              <table className="min-w-full border-collapse text-left text-xs">
-                <thead className="sticky top-0 bg-amber-100 text-amber-950">
-                  <tr>
-                    <th scope="col" className="whitespace-nowrap border-b border-amber-200 px-3 py-2">Record</th>
-                    <th scope="col" className="min-w-48 border-b border-amber-200 px-3 py-2">Skip reason</th>
-                    {skippedImportRows.headers.map((header) => (
-                      <th key={header} scope="col" className="min-w-32 whitespace-nowrap border-b border-amber-200 px-3 py-2">
-                        {header}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {skippedImportRows.rows.map(({ row, reason, recordNumber }) => (
-                    <tr key={recordNumber} className="align-top odd:bg-white even:bg-gray-50">
-                      <td className="whitespace-nowrap border-b border-gray-200 px-3 py-2 font-mono">{recordNumber}</td>
-                      <td className="min-w-48 border-b border-gray-200 px-3 py-2 font-medium">{reason}</td>
-                      {skippedImportRows.headers.map((header) => (
-                        <td key={header} className="min-w-32 border-b border-gray-200 px-3 py-2">
-                          {row[header] || "—"}
-                        </td>
-                      ))}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </section>
-        )}
-
-        {duplicateImportLog && (
-          <section className="w-full border border-indigo-300 bg-indigo-50 p-3 sm:p-4" aria-labelledby="duplicate-import-log-title">
-            <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
-              <div>
-                <h2 id="duplicate-import-log-title" className="text-sm font-bold text-indigo-950">
-                  Duplicate import log ({duplicateImportLog.rows.length} CSV {duplicateImportLog.rows.length === 1 ? "record" : "records"})
-                </h2>
-                <p className="mt-1 text-xs text-indigo-900">
-                  Original CSV values and the import decision for each duplicate record.
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  const rows = duplicateImportLog.rows.map(({ row, recordNumber, phone, resolution, result }) => ({
-                    "CSV record": String(recordNumber),
-                    "Normalized phone": phone,
-                    "Import result": result,
-                    "Duplicate decision": resolution,
-                    ...Object.fromEntries(
-                      duplicateImportLog.headers.map((header) => [`CSV: ${header}`, row[header] || ""])
-                    ),
-                  }));
-                  const fileBase = duplicateImportLog.fileName.replace(/[^a-zA-Z0-9_-]+/g, "-") || "import";
-                  downloadCsvReport(`duplicate-rows-${fileBase}.csv`, rows);
-                }}
-                className="min-h-10 shrink-0 border border-indigo-700 bg-white px-3 py-2 text-xs font-semibold text-indigo-950 hover:bg-indigo-100"
-              >
-                Download duplicate log CSV
-              </button>
-            </div>
-            <div className="mt-3 max-h-96 overflow-auto border border-indigo-200 bg-white">
-              <table className="min-w-full border-collapse text-left text-xs">
-                <thead className="sticky top-0 bg-indigo-100 text-indigo-950">
-                  <tr>
-                    <th scope="col" className="whitespace-nowrap border-b border-indigo-200 px-3 py-2">Record</th>
-                    <th scope="col" className="whitespace-nowrap border-b border-indigo-200 px-3 py-2">Normalized phone</th>
-                    <th scope="col" className="whitespace-nowrap border-b border-indigo-200 px-3 py-2">Import result</th>
-                    <th scope="col" className="min-w-56 border-b border-indigo-200 px-3 py-2">Duplicate decision</th>
-                    {duplicateImportLog.headers.map((header) => (
-                      <th key={header} scope="col" className="min-w-32 whitespace-nowrap border-b border-indigo-200 px-3 py-2">
-                        {header}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {duplicateImportLog.rows.map(({ row, recordNumber, phone, resolution, result }) => (
-                    <tr key={recordNumber} className="align-top odd:bg-white even:bg-gray-50">
-                      <td className="whitespace-nowrap border-b border-gray-200 px-3 py-2 font-mono">{recordNumber}</td>
-                      <td className="whitespace-nowrap border-b border-gray-200 px-3 py-2 font-mono">{phone}</td>
-                      <td className="whitespace-nowrap border-b border-gray-200 px-3 py-2 font-semibold">{result}</td>
-                      <td className="min-w-56 border-b border-gray-200 px-3 py-2">{resolution}</td>
-                      {duplicateImportLog.headers.map((header) => (
-                        <td key={header} className="min-w-32 border-b border-gray-200 px-3 py-2">
-                          {row[header] || "—"}
-                        </td>
-                      ))}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </section>
         )}
 
         {stats && (
@@ -1004,6 +983,134 @@ export const AdminDashboard: React.FC = () => {
         </div>
         </CollapsibleGroup>
       </main>
+
+      {showLogs && (
+        <section className="fixed inset-0 z-[60] flex min-h-dvh flex-col overflow-hidden bg-gray-50" aria-labelledby="event-logs-title">
+          <header className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 bg-white px-4 py-4 sm:px-6">
+            <div>
+              <h1 id="event-logs-title" className="text-lg font-bold text-gray-900">Logs &amp; Audit</h1>
+              <p className="mt-1 text-xs text-gray-500">
+                Persistent import errors, duplicate decisions, sign-in/out audits, assignments, and staff call activity.
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => downloadCsvReport(
+                  `crm-${logFilter}-logs-${new Date().toISOString().slice(0, 10)}.csv`,
+                  eventLogs.map((log) => ({
+                    "Log ID": log.id,
+                    Timestamp: log.created_at,
+                    Category: log.event_category,
+                    Action: log.action,
+                    Message: log.message,
+                    "User ID": log.actor_id || "",
+                    Details: JSON.stringify(log.details || {}),
+                  }))
+                )}
+                disabled={eventLogs.length === 0}
+                className="min-h-10 border border-gray-300 bg-white px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Download loaded logs
+              </button>
+              <button
+                type="button"
+                onClick={() => void fetchEventLogs(logFilter, 0)}
+                disabled={logsLoading}
+                className="min-h-10 border border-gray-300 bg-white px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-100 disabled:opacity-60"
+              >
+                Refresh
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowLogs(false)}
+                className="min-h-10 border border-gray-300 bg-white px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-100"
+              >
+                Back to dashboard
+              </button>
+            </div>
+          </header>
+          <div className="border-b border-gray-200 bg-white px-4 py-3 sm:px-6">
+            <div className="flex flex-wrap gap-2" aria-label="Filter logs">
+              {([
+                ["all", "All logs"],
+                ["error", "Errors"],
+                ["audit", "Audit"],
+                ["activity", "Activity"],
+              ] as const).map(([filter, label]) => (
+                <button
+                  key={filter}
+                  type="button"
+                  aria-pressed={logFilter === filter}
+                  onClick={() => {
+                    setLogFilter(filter);
+                    void fetchEventLogs(filter, 0);
+                  }}
+                  className={`min-h-10 border px-4 py-2 text-xs font-bold ${
+                    logFilter === filter
+                      ? "border-indigo-800 bg-indigo-700 text-white"
+                      : "border-gray-300 bg-white text-gray-700 hover:bg-gray-100"
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <main className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-6">
+            {logsError && (
+              <p role="alert" className="mb-3 border border-red-300 bg-red-50 p-3 text-sm text-red-800">
+                Could not load Logs &amp; Audit: {logsError}. Confirm the event-log migration has been deployed.
+              </p>
+            )}
+            {logsLoading && eventLogs.length === 0 ? (
+              <p className="py-12 text-center text-sm text-gray-500">Loading logs...</p>
+            ) : eventLogs.length === 0 ? (
+              <p className="border border-gray-200 bg-white p-5 text-center text-sm text-gray-500">
+                No {logFilter === "all" ? "" : `${logFilter} `}logs found.
+              </p>
+            ) : (
+              <div className="space-y-2">
+                {eventLogs.map((log) => (
+                  <article key={log.id} className="crm-color-card p-4">
+                    <div className="flex flex-wrap items-start justify-between gap-2">
+                      <div className="flex min-w-0 flex-wrap items-center gap-2">
+                        <span className="border border-gray-300 bg-white px-2 py-1 text-[10px] font-bold uppercase tracking-wide">
+                          {log.event_category}
+                        </span>
+                        <h2 className="break-all text-sm font-bold">{log.action}</h2>
+                      </div>
+                      <time className="shrink-0 text-xs text-gray-600">
+                        {new Date(log.created_at).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })}
+                      </time>
+                    </div>
+                    <p className="mt-2 break-words text-sm">{log.message}</p>
+                    <p className="mt-1 break-all text-[10px] text-gray-500">
+                      User ID: {log.actor_id || "Account no longer available"} · Log ID: {log.id}
+                    </p>
+                    {Object.keys(log.details || {}).length > 0 && (
+                      <details className="mt-3 border-t border-gray-300 pt-2">
+                        <summary className="cursor-pointer text-xs font-semibold">View recorded values</summary>
+                        <pre className="mt-2 max-h-80 overflow-auto whitespace-pre-wrap break-words text-xs">{JSON.stringify(log.details, null, 2)}</pre>
+                      </details>
+                    )}
+                  </article>
+                ))}
+                {logsHasMore && (
+                  <button
+                    type="button"
+                    disabled={logsLoading}
+                    onClick={() => void fetchEventLogs(logFilter, eventLogs.length)}
+                    className="min-h-11 w-full border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-100 disabled:opacity-60"
+                  >
+                    {logsLoading ? "Loading..." : "Load more"}
+                  </button>
+                )}
+              </div>
+            )}
+          </main>
+        </section>
+      )}
 
       {staffActivityView === "staff-list" && (
         <div className="fixed inset-0 z-50 flex min-h-dvh flex-col overflow-y-auto bg-gray-50">

@@ -6,7 +6,7 @@ The database schema and Auth configuration are maintained in:
 - [`supabase/config.toml`](../supabase/config.toml)
 - [GitHub Actions workflow](../../.github/workflows/supabase-deploy.yml)
 
-The workflow deploys the checked-in Auth configuration and applies pending database migrations, including indexes used by paginated contact, call-history, activity-calendar, order, and staff-report queries. It does not require editing settings or running SQL in the Supabase portal.
+The workflow deploys the checked-in Auth configuration and applies pending database migrations, including indexes used by paginated contact, call-history, activity-calendar, order, and staff-report queries, plus the admin-only append-only event log table and activity triggers. It does not require editing settings or running SQL in the Supabase portal.
 
 ## One-time GitHub configuration
 

@@ -9,8 +9,8 @@ The working application is in [`sales-tracker/`](./sales-tracker/). It is a Reac
 
 - Email/password sign-in and sign-up. The database trigger creates new profiles as `staff`; admin promotion is a separate privileged operation.
 - Role-based access for admins and staff, enforced by Supabase row-level security. Staff can access their assigned contacts; admins can access all contacts.
-- CSV import with Indian mobile-number normalization, invalid-row handling, duplicate review, and choices to merge/keep/ignore.
-- Invalid and duplicate CSV records remain visible after import with their reasons/decisions and original values, and can be downloaded as CSV logs.
+- CSV import with Indian mobile-number normalization, invalid-row handling, duplicate review, and choices to keep the existing/first row, keep all rows, or skip all rows for a duplicate phone.
+- Admin Logs & Audit persistently records CSV import errors and duplicate decisions with source values, sign-in/out, assignments, staff call activity, and staff-report access; entries can be filtered by errors, audit, or activity.
 - Admin dashboard with clickable metric cards and detail views for contacts/calls; category, zone, status, and assignee filters; bulk assignment and unassignment. Call action items are Interested, Not Interested, Wrong Number, and No Answer / Callback; outcomes are Quote Sent, Followup Required, Order Placed, Meeting Requested, Try Again Later, and Callback Requested.
 - A single Staff Activity card on the admin dashboard opens a staff list; selecting an individual opens a full-screen report with current assignments, lead status counts, all-time call outcomes/actions, call history, and CSV/PDF downloads. The dashboard also alerts when active staff have no assigned contacts or no remaining contacts in Not Contacted status.
 - Dashboard card groups use vertical lists with expand/collapse controls.
@@ -81,7 +81,7 @@ The staff contact queue includes To Call, Follow-up, each of the four call actio
 
 ## CSV import and contact list
 
-The PWA imports CSV data into the database, validates Indian mobile numbers, and supports duplicate phone-number review with merge/keep/ignore choices. Contact cards show the current call action item (or Not Contacted before a first call), scheduled follow-up when present, and options to call/update or review history.
+The PWA imports CSV data into the database, validates Indian mobile numbers, and supports duplicate phone-number review. Admins can keep the existing database record or first CSV row, import all matching CSV rows, or skip the matching rows. Contact cards show the current call action item (or Not Contacted before a first call), scheduled follow-up when present, and options to call/update or review history.
 
 ### History
 Do not overwrite the previous call information

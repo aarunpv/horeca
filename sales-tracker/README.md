@@ -33,7 +33,7 @@ Keep `SUPABASE_AUTH_SITE_URL` current in GitHub if the deployed app URL changes.
 - Dashboard cards are displayed in vertical lists, with collapsible groups to reduce on-screen clutter
 - Light and dark themes across the app with a persistent preference and system-preference default; full-width cards alternate muted blue, indigo, and gray shades with consistent square corners and borders tuned for both themes
 - Indian mobile-number normalization and duplicate detection during CSV parsing
-- Invalid and duplicate CSV records are logged with their reasons/decisions and original values, and can be downloaded for review
+- Admin Logs & Audit view retains import errors and original skipped/duplicate CSV values, sign-in/out audits, assignments, staff calls, and staff-report access; filter by Errors, Audit, or Activity
 - PWA manifest, app icon, and offline app-shell caching
 
 When adding or modifying CRM features, update [`sales_crm.MD`](../sales_crm.MD) and the relevant user or deployment guides in the same change.

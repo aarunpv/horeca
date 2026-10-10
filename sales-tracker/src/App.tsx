@@ -9,6 +9,7 @@ import { ThemeToggle } from "./ThemeToggle";
 import { useTheme } from "./useTheme";
 import { supabase } from "./supabaseClient";
 import { normalizeCallActionItem, normalizeCallOutcome } from "./callOptions";
+import { writeEventLogs } from "./eventLogs";
 
 interface UserProfile {
   id: string;
@@ -192,8 +193,21 @@ export const App: React.FC = () => {
 
   const handleSignIn = async (email: string, password: string) => {
     if (!supabase) throw new Error("Supabase is not configured.");
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) throw error;
+    try {
+      await writeEventLogs([{
+        event_category: "audit",
+        action: "auth.login",
+        message: "User signed in.",
+        details: { email: data.user.email || email },
+      }]);
+      setAppError(null);
+    } catch (logError: unknown) {
+      setAppError(
+        `Signed in, but the login audit could not be saved: ${logError instanceof Error ? logError.message : "Unknown logging error."}`
+      );
+    }
   };
 
   const handleSignUp = async (name: string, email: string, password: string) => {
@@ -211,6 +225,23 @@ export const App: React.FC = () => {
 
   const handleSignOut = async () => {
     if (!supabase) return;
+    setAppError(null);
+    try {
+      await writeEventLogs([{
+        event_category: "audit",
+        action: "auth.logout",
+        message: "User initiated sign-out.",
+        details: {
+          name: profile?.name || "",
+          email: session?.user.email || "",
+        },
+      }]);
+    } catch (logError: unknown) {
+      setAppError(
+        `Sign-out was not completed because the audit event could not be saved: ${logError instanceof Error ? logError.message : "Unknown logging error."}`
+      );
+      return;
+    }
     const { error } = await supabase.auth.signOut();
     if (error) setAppError(error.message);
   };

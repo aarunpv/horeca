@@ -228,12 +228,12 @@ export const App: React.FC = () => {
   }
 
   return (
-    <div>
-      <nav className="bg-gray-900 text-white px-4 py-2 flex justify-between items-center text-xs">
-        <span className="font-bold tracking-wider">{profile.role === "admin" ? "ADMIN" : "STAFF"} · SALES CALL TRACKER</span>
+    <div className="min-w-0 w-full overflow-x-clip">
+      <nav className="flex min-w-0 flex-wrap items-center justify-between gap-2 bg-gray-900 px-3 py-2 text-[11px] text-white sm:px-4 sm:text-xs">
+        <span className="min-w-0 font-bold tracking-wide">{profile.role === "admin" ? "ADMIN" : "STAFF"} · SALES CALL TRACKER</span>
         <div className="flex items-center gap-3">
           <span className="hidden sm:inline text-gray-300">{profile.name || session.user.email}</span>
-          <button onClick={handleSignOut} className="rounded bg-gray-700 px-3 py-1.5 font-semibold hover:bg-gray-600">
+          <button onClick={handleSignOut} className="min-h-10 rounded bg-gray-700 px-3 py-2 font-semibold hover:bg-gray-600">
             Sign out
           </button>
         </div>

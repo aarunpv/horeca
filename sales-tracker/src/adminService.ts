@@ -101,7 +101,7 @@ export async function insertContactsBatch(contacts: NormalizedContact[]) {
   return data;
 }
 
-export async function bulkAssignContacts(contactIds: string[], staffId: string) {
+export async function bulkAssignContacts(contactIds: string[], staffId: string | null) {
   const client = getSupabaseClient();
   const { data, error } = await client
     .from("contacts")

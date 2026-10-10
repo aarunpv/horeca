@@ -92,26 +92,35 @@ export const App: React.FC = () => {
   const fetchContacts = async () => {
     if (!supabase) return;
 
-    const { data, error } = await supabase
-      .from("contacts")
-      .select("*")
-      .order("created_at", { ascending: false });
-    if (error) throw error;
-    if (data) {
-      setContacts(data.map((contact) => ({
+    const rows: ContactItem[] = [];
+    const pageSize = 1000;
+    for (let offset = 0; ; offset += pageSize) {
+      const { data, error } = await supabase
+        .from("contacts")
+        .select("id, name, category, zone, address, phone_raw, phone_normalized, current_status, next_follow_up_at, assigned_to, google_rating, google_reviews")
+        .order("created_at", { ascending: false })
+        .order("id", { ascending: true })
+        .range(offset, offset + pageSize - 1);
+      if (error) throw error;
+      const page = (data || []).map((contact) => ({
         ...contact,
         current_status: normalizeCallActionItem(contact.current_status),
-      })) as ContactItem[]);
+      })) as ContactItem[];
+      rows.push(...page);
+      if (page.length < pageSize) break;
     }
+    setContacts(rows);
   };
 
   useEffect(() => {
-    if (profile?.is_active) {
+    if (profile?.is_active && profile.role === "staff") {
       void fetchContacts().catch((error: unknown) =>
         setAppError(error instanceof Error ? error.message : "Contacts could not be loaded.")
       );
+    } else {
+      setContacts([]);
     }
-  }, [profile?.id, profile?.is_active]);
+  }, [profile?.id, profile?.is_active, profile?.role]);
 
   const handleSaveOutcome = async (payload: CallLogPayload) => {
     if (!supabase || !session) throw new Error("You must be signed in to save a call.");
@@ -135,7 +144,17 @@ export const App: React.FC = () => {
       .eq("id", payload.contactId);
     if (contactUpdateError) throw contactUpdateError;
 
-    await fetchContacts();
+    setContacts((currentContacts) =>
+      currentContacts.map((contact) =>
+        contact.id === payload.contactId
+          ? {
+              ...contact,
+              current_status: payload.status,
+              next_follow_up_at: payload.followUpDate || null,
+            }
+          : contact
+      )
+    );
   };
 
   const handleFetchHistory = async (contactId: string): Promise<HistoryItem[]> => {

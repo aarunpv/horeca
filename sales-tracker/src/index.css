@@ -173,10 +173,6 @@
   background-color: #172554;
 }
 
-.dark [class~="bg-purple-50"] {
-  background-color: #3b0764;
-}
-
 .dark [class~="bg-purple-100"] {
   background-color: #203a66;
 }
@@ -243,10 +239,6 @@
 
 .dark .text-amber-600 {
   color: #fbbf24;
-}
-
-.dark .border-emerald-300 {
-  border-color: #3569c7;
 }
 
 .dark .border-red-100,
@@ -327,51 +319,60 @@
 }
 
 .crm-color-card {
+  --crm-card-bg: #eff6ff;
+  --crm-card-text: #263449;
+  --crm-card-border: #cbd5e1;
   width: 100%;
   min-width: 0;
-  border-color: #d8dee8;
+  border: 1px solid var(--crm-card-border);
   border-radius: 0 !important;
-  color: #263449;
-  box-shadow: 0 2px 7px rgb(28 39 68 / 8%);
+  background-color: var(--crm-card-bg);
+  color: var(--crm-card-text);
+  box-shadow: 0 1px 3px rgb(28 39 68 / 8%);
   transition:
     transform 160ms ease,
     box-shadow 160ms ease;
 }
 
 .crm-color-card:nth-child(5n + 1) {
-  background-color: #f1e9df;
+  --crm-card-bg: #eff6ff;
+  --crm-card-border: #c7d8ec;
 }
 
 .crm-color-card:nth-child(5n + 2) {
-  background-color: #e6ebf2;
+  --crm-card-bg: #eef2ff;
+  --crm-card-border: #cdd2eb;
 }
 
 .crm-color-card:nth-child(5n + 3) {
-  background-color: #e5ece6;
+  --crm-card-bg: #f1f5f9;
+  --crm-card-border: #cbd5e1;
 }
 
 .crm-color-card:nth-child(5n + 4) {
-  background-color: #f0e5e4;
+  --crm-card-bg: #eaf1fb;
+  --crm-card-border: #c2d2e7;
 }
 
 .crm-color-card:nth-child(5n + 5) {
-  background-color: #ebe8f1;
+  --crm-card-bg: #f1f0fa;
+  --crm-card-border: #d1cee6;
 }
 
 .crm-color-card [class*="text-"] {
-  color: #263449;
+  color: var(--crm-card-text);
 }
 
 .crm-color-card .rounded-full {
-  border: 1px solid rgb(38 52 73 / 16%);
-  background-color: rgb(255 255 255 / 52%);
-  color: #263449;
+  border: 1px solid var(--crm-card-border);
+  background-color: rgb(255 255 255 / 65%);
+  color: var(--crm-card-text);
 }
 
 .crm-color-card button {
-  border-color: rgb(38 52 73 / 20%);
-  background-color: rgb(255 255 255 / 60%);
-  color: #263449;
+  border-color: var(--crm-card-border);
+  background-color: rgb(255 255 255 / 65%);
+  color: var(--crm-card-text);
 }
 
 .crm-color-card button:hover {
@@ -389,6 +390,7 @@
 }
 
 .crm-card-section {
+  border: 1px solid #cbd5e1;
   border-radius: 0 !important;
 }
 
@@ -442,45 +444,51 @@
 }
 
 .dark .crm-color-card {
-  border-color: #44536a;
-  color: #edf2f9;
-  box-shadow: 0 2px 8px rgb(0 0 0 / 20%);
+  --crm-card-bg: #1e2b40;
+  --crm-card-text: #e3ebf7;
+  --crm-card-border: #3b4b63;
+  box-shadow: 0 1px 4px rgb(0 0 0 / 20%);
 }
 
 .dark .crm-color-card:nth-child(5n + 1) {
-  background-color: #3b332c;
+  --crm-card-bg: #1e3048;
+  --crm-card-border: #405b7a;
 }
 
 .dark .crm-color-card:nth-child(5n + 2) {
-  background-color: #29374b;
+  --crm-card-bg: #292a46;
+  --crm-card-border: #4c4e75;
 }
 
 .dark .crm-color-card:nth-child(5n + 3) {
-  background-color: #2d3b34;
+  --crm-card-bg: #252f3e;
+  --crm-card-border: #46566b;
 }
 
 .dark .crm-color-card:nth-child(5n + 4) {
-  background-color: #402f33;
+  --crm-card-bg: #24354a;
+  --crm-card-border: #415a75;
 }
 
 .dark .crm-color-card:nth-child(5n + 5) {
-  background-color: #373248;
+  --crm-card-bg: #302e4b;
+  --crm-card-border: #555176;
 }
 
 .dark .crm-color-card [class*="text-"] {
-  color: #edf2f9;
+  color: var(--crm-card-text);
 }
 
 .dark .crm-color-card .rounded-full {
-  border-color: rgb(237 242 249 / 20%);
-  background-color: rgb(16 24 39 / 35%);
-  color: #edf2f9;
+  border-color: var(--crm-card-border);
+  background-color: rgb(16 24 39 / 48%);
+  color: var(--crm-card-text);
 }
 
 .dark .crm-color-card button {
-  border-color: #53627a;
+  border-color: var(--crm-card-border);
   background-color: rgb(16 24 39 / 35%);
-  color: #edf2f9;
+  color: var(--crm-card-text);
 }
 
 .dark .crm-color-card button:hover {
@@ -508,6 +516,15 @@
   box-shadow:
     0 0 0 3px rgb(233 213 255 / 34%),
     0 5px 10px rgb(0 0 0 / 30%);
+}
+
+.dark .crm-card-section {
+  border-color: #3b4b63;
+}
+
+.crm-colorful-list > .crm-color-card {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 7rem;
 }
 
 @media (prefers-reduced-motion: reduce) {

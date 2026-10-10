@@ -43,7 +43,7 @@ export const CollapsibleGroup: React.FC<CollapsibleGroupProps> = ({
         </button>
       </h2>
       {isExpanded && (
-        <div id={contentId} className="border-t border-gray-100 px-2 py-3 sm:px-3 sm:py-4">
+        <div id={contentId} className="border-t border-gray-100 px-0 py-3">
           {children}
         </div>
       )}

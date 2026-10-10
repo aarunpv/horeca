@@ -17,7 +17,6 @@ export interface NormalizedContact {
   google_reviews: number | null;
   phone_raw: string;
   phone_normalized: string;
-  is_valid_phone: boolean;
 }
 
 export interface ParseResult {
@@ -72,7 +71,6 @@ export function processCsvBatch(rows: RawCsvRow[]): ParseResult {
       google_reviews: row.Reviews ? parseInt(row.Reviews, 10) : null,
       phone_raw: row.Phone.trim(),
       phone_normalized: normalized,
-      is_valid_phone: true,
     };
 
     if (seenPhoneNumbers.has(normalized)) {

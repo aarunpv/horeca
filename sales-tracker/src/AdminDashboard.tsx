@@ -80,8 +80,9 @@ export const AdminDashboard: React.FC = () => {
     for (let offset = 0; ; offset += pageSize) {
       const { data, error } = await supabase
         .from("contacts")
-        .select("*")
+        .select("id, name, category, zone, address, google_rating, google_reviews, phone_raw, phone_normalized, current_status, next_follow_up_at, assigned_to")
         .order("created_at", { ascending: false })
+        .order("id", { ascending: true })
         .range(offset, offset + pageSize - 1);
       if (error) throw error;
       const page = (data || []).map((contact) => ({
@@ -98,10 +99,11 @@ export const AdminDashboard: React.FC = () => {
 
     setDashboardError(null);
     try {
+      const contactsPromise = loadAllContacts();
       const [statsData, staffData, contactsRes] = await Promise.all([
-        getAdminMetrics(),
+        getAdminMetrics(contactsPromise),
         getStaffList(),
-        loadAllContacts(),
+        contactsPromise,
       ]);
       setStats(statsData);
       setStaff(staffData);
@@ -147,17 +149,28 @@ export const AdminDashboard: React.FC = () => {
     });
   }, [contacts, categoryFilter, zoneFilter, statusFilter, assignedFilter, searchQuery]);
 
+  const contactsByStaff = useMemo(() => {
+    const grouped = new Map<string, ContactItem[]>();
+    contacts.forEach((contact) => {
+      if (!contact.assigned_to) return;
+      const assigned = grouped.get(contact.assigned_to) || [];
+      assigned.push(contact);
+      grouped.set(contact.assigned_to, assigned);
+    });
+    return grouped;
+  }, [contacts]);
+
   const staffAssignmentAlerts = useMemo(
     () =>
       staff.flatMap((member) => {
-        const assignedContacts = contacts.filter((contact) => contact.assigned_to === member.id);
+        const assignedContacts = contactsByStaff.get(member.id) || [];
         const remainingToCall = assignedContacts.filter(
           (contact) => contact.current_status === "Not Contacted"
         ).length;
         if (assignedContacts.length > 0 && remainingToCall > 0) return [];
         return [{ member, assignedCount: assignedContacts.length, remainingToCall }];
       }),
-    [contacts, staff]
+    [contactsByStaff, staff]
   );
 
   const metricContacts = useMemo(() => {
@@ -203,7 +216,7 @@ export const AdminDashboard: React.FC = () => {
         startOfToday.setHours(0, 0, 0, 0);
         query = query.gte("called_at", startOfToday.toISOString());
       } else {
-        query = query.eq("action", "Order Placed");
+        query = query.eq("status", "Order Placed");
       }
 
       const { data, error } = await query;
@@ -242,7 +255,7 @@ export const AdminDashboard: React.FC = () => {
       ]
     : [];
 
-  const assignedToStaff = (staffId: string) => contacts.filter((contact) => contact.assigned_to === staffId);
+  const assignedToStaff = (staffId: string) => contactsByStaff.get(staffId) || [];
 
   const openStaffActivity = async (member: StaffMember) => {
     setStaffActivityTarget(member);
@@ -517,8 +530,8 @@ export const AdminDashboard: React.FC = () => {
 
   return (
     <div className="min-h-screen w-full min-w-0 overflow-x-clip bg-gray-50 pb-28">
-      <header className="bg-white border-b border-gray-200 px-6 py-4">
-        <div className="mx-auto flex max-w-7xl flex-col justify-between gap-4 px-0 sm:flex-row sm:items-center sm:px-2">
+      <header className="w-full border-b border-gray-200 bg-white px-3 py-4 sm:px-4">
+        <div className="flex w-full flex-col justify-between gap-4 sm:flex-row sm:items-center">
           <div>
             <h1 className="text-lg font-bold text-gray-900">Admin Command Center</h1>
             <p className="text-xs text-gray-500">Lead Ingestion & Territory Distribution</p>
@@ -795,7 +808,7 @@ export const AdminDashboard: React.FC = () => {
               ← Admin dashboard
             </button>
           </header>
-          <main className="mx-auto w-full max-w-7xl flex-1 space-y-4 p-4 sm:p-6">
+          <main className="w-full flex-1 space-y-4 p-4 sm:p-6">
             {staff.length === 0 ? (
               <p className="rounded-xl border border-gray-200 bg-white p-4 text-sm text-gray-500">
                 No active staff accounts are available.
@@ -900,7 +913,7 @@ export const AdminDashboard: React.FC = () => {
                       { label: "Currently assigned", value: selectedStaffContacts.length },
                       { label: "Leads with outcome", value: selectedStaffContacts.filter((contact) => contact.current_status !== "Not Contacted").length },
                       { label: "Call records", value: staffActivityCalls.length },
-                      { label: "Orders recorded", value: staffActivityCalls.filter((call) => call.action === "Order Placed").length },
+                      { label: "Orders recorded", value: staffActivityCalls.filter((call) => call.status === "Order Placed").length },
                     ].map((item) => (
                       <div key={item.label} className="crm-color-card flex items-center justify-between gap-3 border px-4 py-3">
                         <p className="text-[10px] font-bold uppercase text-gray-500">{item.label}</p>
@@ -1244,7 +1257,7 @@ export const AdminDashboard: React.FC = () => {
 
       {selectedContactIds.size > 0 && (
         <div className="fixed bottom-0 inset-x-0 bg-white border-t border-gray-300 p-4 shadow-2xl z-40">
-          <div className="max-w-4xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3">
+          <div className="mx-auto flex w-full flex-col items-center justify-between gap-3 sm:flex-row">
             <span className="text-xs font-bold text-gray-800">
               {selectedContactIds.size} leads selected for allocation
             </span>

@@ -32,34 +32,65 @@ function getSupabaseClient() {
   return supabase;
 }
 
-export async function getAdminMetrics(): Promise<AdminStats> {
+interface ContactMetric {
+  current_status: string;
+  assigned_to: string | null;
+  next_follow_up_at: string | null;
+}
+
+export async function getAdminMetrics(
+  contactsPromise: Promise<ContactMetric[]>
+): Promise<AdminStats> {
   const client = getSupabaseClient();
   const todayStart = new Date();
   todayStart.setHours(0, 0, 0, 0);
 
-  const [contactsRes, callsRes] = await Promise.all([
-    client.from("contacts").select("id, current_status, assigned_to, next_follow_up_at"),
-    client.from("calls").select("id, status, action, called_at").gte("called_at", todayStart.toISOString()),
+  const [contacts, callsTodayRes, ordersRes] = await Promise.all([
+    contactsPromise,
+    client
+      .from("calls")
+      .select("id", { count: "exact", head: true })
+      .gte("called_at", todayStart.toISOString()),
+    client
+      .from("calls")
+      .select("id", { count: "exact", head: true })
+      .eq("status", "Order Placed"),
   ]);
-  if (contactsRes.error) throw contactsRes.error;
-  if (callsRes.error) throw callsRes.error;
-
-  const contacts = contactsRes.data || [];
-  const calls = callsRes.data || [];
+  if (callsTodayRes.error) throw callsTodayRes.error;
+  if (ordersRes.error) throw ordersRes.error;
   const now = new Date();
+  const contactStats = contacts.reduce(
+    (stats, contact) => {
+      const status = normalizeCallActionItem(contact.current_status);
+      if (status === "Interested") stats.interested += 1;
+      if (status === "Not Interested") stats.notInterested += 1;
+      if (status === "Wrong Number") stats.wrongNumber += 1;
+      if (status === "No Answer / Callback") stats.noAnswerCallback += 1;
+      if (!contact.assigned_to) stats.unassigned += 1;
+      if (
+        contact.next_follow_up_at &&
+        new Date(contact.next_follow_up_at) < now &&
+        status !== "Not Interested"
+      ) {
+        stats.overdueFollowUps += 1;
+      }
+      return stats;
+    },
+    {
+      interested: 0,
+      notInterested: 0,
+      wrongNumber: 0,
+      noAnswerCallback: 0,
+      unassigned: 0,
+      overdueFollowUps: 0,
+    }
+  );
 
   return {
     totalContacts: contacts.length,
-    totalCallsToday: calls.length,
-    interested: contacts.filter((c) => normalizeCallActionItem(c.current_status) === "Interested").length,
-    notInterested: contacts.filter((c) => normalizeCallActionItem(c.current_status) === "Not Interested").length,
-    wrongNumber: contacts.filter((c) => normalizeCallActionItem(c.current_status) === "Wrong Number").length,
-    noAnswerCallback: contacts.filter((c) => normalizeCallActionItem(c.current_status) === "No Answer / Callback").length,
-    orders: calls.filter((c) => c.action === "Order Placed").length,
-    unassigned: contacts.filter((c) => !c.assigned_to).length,
-    overdueFollowUps: contacts.filter(
-      (c) => c.next_follow_up_at && new Date(c.next_follow_up_at) < now && c.current_status !== "Not Interested"
-    ).length,
+    totalCallsToday: callsTodayRes.count || 0,
+    ...contactStats,
+    orders: ordersRes.count || 0,
   };
 }
 

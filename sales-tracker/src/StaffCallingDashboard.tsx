@@ -54,6 +54,7 @@ export const StaffCallingDashboard: React.FC<StaffDashboardProps> = ({
   ];
 
   useEffect(() => {
+    if (selectedFilter !== "Orders") return;
     let isCurrent = true;
     const loadOrderContactIds = async () => {
       if (!supabase) {
@@ -68,8 +69,9 @@ export const StaffCallingDashboard: React.FC<StaffDashboardProps> = ({
           const { data, error } = await supabase
             .from("calls")
             .select("contact_id")
-            .eq("action", "Order Placed")
+            .eq("status", "Order Placed")
             .order("contact_id")
+            .order("id")
             .range(offset, offset + pageSize - 1);
           if (error) throw error;
           const page = data || [];
@@ -87,7 +89,7 @@ export const StaffCallingDashboard: React.FC<StaffDashboardProps> = ({
     return () => {
       isCurrent = false;
     };
-  }, [contacts, staffId]);
+  }, [selectedFilter, staffId]);
 
   const filteredContacts = useMemo(() => {
     return contacts.filter((c) => {
@@ -126,7 +128,7 @@ export const StaffCallingDashboard: React.FC<StaffDashboardProps> = ({
   return (
     <div className="min-h-screen w-full min-w-0 overflow-x-clip bg-gray-50 pb-20">
       <header className="sticky top-0 z-30 w-full border-b border-gray-200 bg-white px-3 py-3 shadow-xs sm:px-4">
-        <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-3">
+        <div className="flex w-full items-center justify-between gap-3">
           <button
             type="button"
             onClick={() => setIsContactsMenuOpen(true)}
@@ -143,7 +145,7 @@ export const StaffCallingDashboard: React.FC<StaffDashboardProps> = ({
             {filteredContacts.length} Leads
           </span>
         </div>
-        <div className="mx-auto mt-3 w-full max-w-7xl">
+        <div className="mt-3 w-full">
           <input
             type="search"
             placeholder="Search name, zone, or phone..."
@@ -313,6 +315,9 @@ export const StaffCallingDashboard: React.FC<StaffDashboardProps> = ({
                 contact={activeContact}
                 onSaveOutcome={async (payload) => {
                   await onSaveOutcome(payload);
+                  if (payload.action === "Order Placed") {
+                    setOrderContactIds((current) => new Set(current).add(payload.contactId));
+                  }
                   setActiveContact(null);
                 }}
               />

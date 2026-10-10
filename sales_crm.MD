@@ -16,7 +16,7 @@ The working application is in [`sales-tracker/`](./sales-tracker/). It is a Reac
 - Admin and staff dashboards include an activity calendar for calls and scheduled follow-ups, filterable by today, specific date, and date range. Admins can filter by staff and metric; staff can filter by metric only.
 - Staff calling queue with a visible slide-out Contacts filter menu, full-width responsive contact cards, click-to-call, outcome/actions, notes, follow-up scheduling, Google Calendar event link, and append-only call history.
 - Responsive contact-card layouts for mobile, plus a PWA manifest, install icon, and service worker app-shell cache.
-- Light and dark themes across sign-in, admin, and staff screens, with a persistent user preference and system-preference default; dashboard lists use full-width orange, blue, green, red, and purple cards with a subtle lift, while dark mode retains navy app surfaces.
+- Light and dark themes across sign-in, admin, and staff screens, with a persistent user preference and system-preference default; dashboard cards fill the available display width, use low-saturation theme-contrasting tints, square corners, and subtle shadows, while dark mode retains navy app surfaces.
 - Supabase schema, RLS, Auth configuration, and GitHub Actions deployment workflow are maintained in source control.
 
 ### Important current limitations

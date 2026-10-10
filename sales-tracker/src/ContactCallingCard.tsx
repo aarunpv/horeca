@@ -84,7 +84,7 @@ export const ContactCallingCard: React.FC<ContactProps> = ({ contact, onSaveOutc
   };
 
   return (
-    <div className="flex flex-col bg-white border border-gray-200 rounded-2xl shadow-sm p-5 max-w-md mx-auto">
+    <div className="flex w-full min-w-0 flex-col border border-gray-200 bg-white p-4 shadow-sm sm:p-5">
       <div className="flex justify-between items-start mb-2">
         <div>
           <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-blue-50 text-blue-700 uppercase">
@@ -119,11 +119,8 @@ export const ContactCallingCard: React.FC<ContactProps> = ({ contact, onSaveOutc
                 key={s}
                 type="button"
                 onClick={() => handleStatusChange(s)}
-                className={`text-xs px-2.5 py-1.5 rounded-lg border font-medium transition ${
-                  status === s
-                    ? "bg-gray-900 text-white border-gray-900 shadow-sm"
-                    : "bg-gray-50 text-gray-700 border-gray-200"
-                }`}
+                aria-pressed={status === s}
+                className="call-choice-button"
               >
                 {s}
               </button>
@@ -145,11 +142,8 @@ export const ContactCallingCard: React.FC<ContactProps> = ({ contact, onSaveOutc
                       setFollowUpDate("");
                     }
                   }}
-                  className={`text-xs px-2.5 py-1.5 rounded-lg border font-medium transition ${
-                    action === act
-                      ? "bg-purple-600 text-white border-purple-600 shadow-sm"
-                      : "bg-gray-50 text-gray-700 border-gray-200"
-                  }`}
+                  aria-pressed={action === act}
+                  className="call-choice-button call-outcome-button"
                 >
                   {act}
                 </button>

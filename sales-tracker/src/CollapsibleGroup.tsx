@@ -19,7 +19,7 @@ export const CollapsibleGroup: React.FC<CollapsibleGroupProps> = ({
   const [isExpanded, setIsExpanded] = useState(defaultExpanded);
 
   return (
-    <section className={`overflow-hidden rounded-xl border border-gray-200 bg-white ${className}`}>
+    <section className={`crm-card-section w-full min-w-0 overflow-hidden border border-gray-200 bg-white ${className}`}>
       <h2>
         <button
           type="button"
@@ -43,7 +43,7 @@ export const CollapsibleGroup: React.FC<CollapsibleGroupProps> = ({
         </button>
       </h2>
       {isExpanded && (
-        <div id={contentId} className="border-t border-gray-100 p-3 sm:p-4">
+        <div id={contentId} className="border-t border-gray-100 px-2 py-3 sm:px-3 sm:py-4">
           {children}
         </div>
       )}

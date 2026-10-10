@@ -531,7 +531,7 @@ export const AdminDashboard: React.FC = () => {
         </div>
       </header>
 
-      <main className="mx-auto w-full min-w-0 max-w-7xl space-y-4 px-3 py-4 sm:px-5 md:py-6">
+      <main className="mx-auto w-full min-w-0 space-y-4 px-2 py-4 sm:px-4 md:py-6">
         {dashboardError && (
           <div role="alert" className="p-3 bg-red-50 border border-red-200 text-red-800 text-xs rounded-xl">
             {dashboardError}
@@ -716,7 +716,7 @@ export const AdminDashboard: React.FC = () => {
             <span>{selectedContactIds.size} Selected</span>
           </div>
 
-          <div className="crm-colorful-list space-y-3 px-3 pb-3">
+          <div className="crm-colorful-list space-y-3 pb-2">
             {filteredContacts.length === 0 ? (
               <p className="py-8 text-center text-sm text-gray-500">No leads match the filters.</p>
             ) : (
@@ -902,7 +902,7 @@ export const AdminDashboard: React.FC = () => {
                       { label: "Call records", value: staffActivityCalls.length },
                       { label: "Orders recorded", value: staffActivityCalls.filter((call) => call.action === "Order Placed").length },
                     ].map((item) => (
-                      <div key={item.label} className="crm-color-card flex items-center justify-between gap-3 rounded-xl border px-4 py-3">
+                      <div key={item.label} className="crm-color-card flex items-center justify-between gap-3 border px-4 py-3">
                         <p className="text-[10px] font-bold uppercase text-gray-500">{item.label}</p>
                         <p className="text-xl font-bold text-gray-900">{item.value}</p>
                       </div>
@@ -916,7 +916,7 @@ export const AdminDashboard: React.FC = () => {
                     ) : (
                       <div className="crm-colorful-list space-y-2">
                         {Object.entries(assignedStatusCounts).map(([status, count]) => (
-                          <div key={status} className="crm-color-card flex items-center justify-between gap-3 rounded-xl border px-4 py-3 text-sm">
+                          <div key={status} className="crm-color-card flex items-center justify-between gap-3 border px-4 py-3 text-sm">
                             <span className="font-semibold text-gray-700">{status}</span>
                             <span className="font-bold text-gray-900">{count}</span>
                           </div>
@@ -933,7 +933,7 @@ export const AdminDashboard: React.FC = () => {
                         <div className="crm-colorful-list space-y-2">
                           <h3 className="text-sm font-bold text-gray-900">Call action items</h3>
                           {Object.entries(callActionCounts).map(([actionItem, count]) => (
-                            <div key={actionItem} className="crm-color-card flex items-center justify-between gap-3 rounded-xl border px-4 py-3 text-sm">
+                            <div key={actionItem} className="crm-color-card flex items-center justify-between gap-3 border px-4 py-3 text-sm">
                               <span className="font-semibold text-blue-800">{actionItem}</span>
                               <span className="font-bold text-blue-800">{count}</span>
                             </div>
@@ -942,7 +942,7 @@ export const AdminDashboard: React.FC = () => {
                         <div className="crm-colorful-list space-y-2">
                           <h3 className="text-sm font-bold text-gray-900">Outcomes</h3>
                           {Object.entries(callOutcomeCounts).map(([outcome, count]) => (
-                            <div key={outcome} className="crm-color-card flex items-center justify-between gap-3 rounded-xl border px-4 py-3 text-sm">
+                            <div key={outcome} className="crm-color-card flex items-center justify-between gap-3 border px-4 py-3 text-sm">
                               <span className="font-semibold text-purple-800">{outcome}</span>
                               <span className="font-bold text-purple-800">{count}</span>
                             </div>

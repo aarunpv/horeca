@@ -155,7 +155,7 @@ export const StaffCallingDashboard: React.FC<StaffDashboardProps> = ({
         </div>
       </header>
 
-      <main className="mx-auto w-full max-w-7xl min-w-0 space-y-3 px-2 py-3 sm:px-4 sm:py-5">
+      <main className="mx-auto w-full min-w-0 space-y-3 px-2 py-3 sm:px-4 sm:py-5">
         {ordersError && selectedFilter === "Orders" && (
           <p role="alert" className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800">
             {ordersError}
@@ -275,12 +275,12 @@ export const StaffCallingDashboard: React.FC<StaffDashboardProps> = ({
       )}
 
       {activeContact && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/60 p-2 sm:p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/60 p-0">
           <section
             role="dialog"
             aria-modal="true"
             aria-label={`Call outcome for ${activeContact.name}`}
-            className="flex max-h-[calc(100dvh-1rem)] w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-white shadow-2xl sm:max-h-[calc(100dvh-2rem)]"
+            className="flex max-h-dvh w-full max-w-none flex-col overflow-hidden bg-white shadow-2xl"
           >
             <nav aria-label="Contact navigation" className="grid shrink-0 grid-cols-3 gap-2 border-b border-gray-200 bg-white p-3">
               <button

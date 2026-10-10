@@ -31,7 +31,7 @@ Keep `SUPABASE_AUTH_SITE_URL` current in GitHub if the deployed app URL changes.
 - Staff calling queue with a slide-out contacts menu, full-width responsive lead cards, click-to-call, call outcomes, follow-up scheduling, and contact history ([guide](./docs/staff-calling.md))
 - Shared admin/staff activity calendar for today, a specific date, or a date range; admins can filter by staff and metric, while staff can filter by metric
 - Dashboard cards are displayed in vertical lists, with collapsible groups to reduce on-screen clutter
-- Light and dark themes across the app with a persistent preference and system-preference default; colorful full-width dashboard cards use alternating orange, blue, green, red, and purple tiles with larger labels and a subtle lift, while dark mode retains navy app surfaces
+- Light and dark themes across the app with a persistent preference and system-preference default; full-width dashboard cards use muted theme-contrasting tints, square corners, and subtle shadows, while dark mode retains navy app surfaces
 - Indian mobile-number normalization and duplicate detection during CSV parsing
 - PWA manifest, app icon, and offline app-shell caching
 

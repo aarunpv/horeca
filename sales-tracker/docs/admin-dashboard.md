@@ -27,7 +27,7 @@ Reports contain business contact information and call notes. Store and share dow
 
 ## Appearance
 
-Use the app's theme toggle to switch between light mode and the dark appearance, which uses navy app surfaces. Dashboard metric, staff, lead, and activity cards use alternating orange, blue, green, red, and purple colors, full available width, larger labels, and a subtle hover lift. The selected theme is remembered by the browser.
+Use the app's theme toggle to switch between light mode and the dark appearance, which uses navy app surfaces. Dashboard metric, staff, lead, and activity cards use low-saturation warm, blue, green, red, and purple-tinted surfaces that contrast with the selected theme. Cards fill the available display width with square corners and a subtle shadow. The selected theme is remembered by the browser.
 
 Call action items are **Interested**, **Not Interested**, **Wrong Number**, and **No Answer / Callback**. Outcomes are **Quote Sent**, **Followup Required**, **Order Placed**, **Meeting Requested**, **Try Again Later**, and **Callback Requested**. The activity calendar filters action items and outcomes separately. Orders are counted from the **Order Placed** outcome, not as a call action item.
 

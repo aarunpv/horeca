@@ -306,7 +306,7 @@ export const ActivityCalendar: React.FC<ActivityCalendarProps> = ({ contacts, st
             {events.map((event) => {
               const contact = contactById.get(event.call.contact_id);
               return (
-                <article key={event.id} className="crm-color-card flex min-w-0 flex-col gap-2 rounded-xl border p-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+                <article key={event.id} className="crm-color-card flex min-w-0 flex-col gap-2 border p-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
                       <span className={`rounded-full px-2.5 py-1 text-[10px] font-bold ${

@@ -6,7 +6,7 @@ Use the visible **Contacts · [selected queue]** button to slide open the contac
 
 On a contact card, choose **Dial / Update** to open the call workflow or **History** to view previous interactions.
 
-The contact cards are shown as colorful, full-width tiles in a vertical list, with a subtle lift on pointer hover. Select the **Contacts · [selected queue]** section heading to collapse or expand the list; it starts expanded.
+The contact cards are shown as low-saturation, full-width tiles in a vertical list with square corners and a subtle shadow. In the call form, selected action and outcome buttons are clearly highlighted in indigo and violet, separate from the green call/save controls. Select the **Contacts · [selected queue]** section heading to collapse or expand the list; it starts expanded.
 
 Use the app's theme toggle to switch between light mode and the dark appearance. The colorful contact tiles remain visible in both themes, and the selected theme is remembered by the browser.
 

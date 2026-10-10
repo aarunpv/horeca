@@ -28,8 +28,10 @@ export const AdminDashboard: React.FC = () => {
   const [selectedContactIds, setSelectedContactIds] = useState<Set<string>>(new Set());
   const [selectedStaffId, setSelectedStaffId] = useState<string>("");
 
+  const [categoryFilter, setCategoryFilter] = useState<string>("All");
   const [zoneFilter, setZoneFilter] = useState<string>("All");
   const [statusFilter, setStatusFilter] = useState<string>("All");
+  const [assignedFilter, setAssignedFilter] = useState<string>("All");
   const [searchQuery, setSearchQuery] = useState<string>("");
 
   const [isUploading, setIsUploading] = useState<boolean>(false);
@@ -67,20 +69,31 @@ export const AdminDashboard: React.FC = () => {
     return ["All", ...list];
   }, [contacts]);
 
+  const categories = useMemo(() => {
+    const list = Array.from(new Set(contacts.map((c) => c.category).filter(Boolean)));
+    return ["All", ...list];
+  }, [contacts]);
+
   const filteredContacts = useMemo(() => {
     return contacts.filter((c) => {
       const matchesSearch =
         c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         c.phone_raw.includes(searchQuery) ||
-        c.zone.toLowerCase().includes(searchQuery.toLowerCase());
+        c.zone.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        c.category.toLowerCase().includes(searchQuery.toLowerCase());
 
       if (!matchesSearch) return false;
+      if (categoryFilter !== "All" && c.category !== categoryFilter) return false;
       if (zoneFilter !== "All" && c.zone !== zoneFilter) return false;
       if (statusFilter !== "All" && c.current_status !== statusFilter) return false;
+      if (assignedFilter === "Unassigned" && c.assigned_to) return false;
+      if (assignedFilter !== "All" && assignedFilter !== "Unassigned" && c.assigned_to !== assignedFilter) {
+        return false;
+      }
 
       return true;
     });
-  }, [contacts, zoneFilter, statusFilter, searchQuery]);
+  }, [contacts, categoryFilter, zoneFilter, statusFilter, assignedFilter, searchQuery]);
 
   const handleToggleSelect = (id: string) => {
     const updated = new Set(selectedContactIds);
@@ -260,18 +273,30 @@ export const AdminDashboard: React.FC = () => {
         )}
 
         <div className="bg-white p-4 rounded-xl border border-gray-200">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3">
             <input
               type="search"
-              placeholder="Search by name, phone, or zone..."
+              placeholder="Search name, phone, category, or zone..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full px-3 py-2 text-xs bg-gray-50 border border-gray-200 rounded-lg outline-none focus:bg-white"
+              className="w-full px-3 py-2 text-xs bg-gray-50 border border-gray-200 rounded-lg outline-none focus:bg-white lg:col-span-2"
+              aria-label="Search contacts"
             />
+            <select
+              value={categoryFilter}
+              onChange={(e) => setCategoryFilter(e.target.value)}
+              className="text-xs p-2 bg-gray-50 border border-gray-200 rounded-lg outline-none"
+              aria-label="Filter by category"
+            >
+              {categories.map((category) => (
+                <option key={category} value={category}>Category: {category}</option>
+              ))}
+            </select>
             <select
               value={zoneFilter}
               onChange={(e) => setZoneFilter(e.target.value)}
               className="text-xs p-2 bg-gray-50 border border-gray-200 rounded-lg outline-none"
+              aria-label="Filter by zone"
             >
               {zones.map((z) => (
                 <option key={z} value={z}>Zone: {z}</option>
@@ -281,13 +306,29 @@ export const AdminDashboard: React.FC = () => {
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
               className="text-xs p-2 bg-gray-50 border border-gray-200 rounded-lg outline-none"
+              aria-label="Filter by status"
             >
               <option value="All">Status: All</option>
               <option value="Not Contacted">Not Contacted</option>
               <option value="Interested">Interested</option>
               <option value="Maybe">Maybe</option>
+              <option value="No Answer / Callback">No Answer / Callback</option>
               <option value="No Answer">No Answer</option>
               <option value="Not Interested">Not Interested</option>
+              <option value="Wrong Number">Wrong Number</option>
+              <option value="Order Placed">Order Placed</option>
+            </select>
+            <select
+              value={assignedFilter}
+              onChange={(e) => setAssignedFilter(e.target.value)}
+              className="text-xs p-2 bg-gray-50 border border-gray-200 rounded-lg outline-none"
+              aria-label="Filter by assigned staff member"
+            >
+              <option value="All">Assigned: All</option>
+              <option value="Unassigned">Unassigned</option>
+              {staff.map((member) => (
+                <option key={member.id} value={member.id}>Assigned: {member.name}</option>
+              ))}
             </select>
           </div>
         </div>

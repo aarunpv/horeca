@@ -26,7 +26,13 @@ Keep `SUPABASE_AUTH_SITE_URL` current in GitHub if the deployed app URL changes.
 ## Included workflows
 
 - Email/password sign-in and account creation
-- Admin CSV import, lead assignment, activity totals, and contact filtering
-- Staff calling queue, click-to-call, call outcomes, follow-up scheduling, and contact history
+- Admin CSV import, lead assignment, activity totals, and contact filtering. The four call action items are **Interested**, **Not Interested**, **Wrong Number**, and **No Answer / Callback**; the six outcomes are **Quote Sent**, **Followup Required**, **Order Placed**, **Meeting Requested**, **Try Again Later**, and **Callback Requested**.
+- Admin Staff Activity entry card leading to an individual staff list and detailed assignment/outcome reports with CSV/PDF downloads; alerts when active staff need new assignments ([guide](./docs/admin-dashboard.md))
+- Staff calling queue with a slide-out contacts menu, full-width responsive lead cards, click-to-call, call outcomes, follow-up scheduling, and contact history ([guide](./docs/staff-calling.md))
+- Shared admin/staff activity calendar for today, a specific date, or a date range; admins can filter by staff and metric, while staff can filter by metric
+- Dashboard cards are displayed in vertical lists, with collapsible groups to reduce on-screen clutter
+- Light and dark themes across the app with a persistent preference and system-preference default; colorful full-width dashboard cards use alternating orange, blue, green, red, and purple tiles with larger labels and a subtle lift, while dark mode retains navy app surfaces
 - Indian mobile-number normalization and duplicate detection during CSV parsing
 - PWA manifest, app icon, and offline app-shell caching
+
+When adding or modifying CRM features, update [`sales_crm.MD`](../sales_crm.MD) and the relevant user or deployment guides in the same change.

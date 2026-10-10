@@ -1,5 +1,6 @@
 import { supabase } from "./supabaseClient";
 import { NormalizedContact } from "./csvParser";
+import { normalizeCallActionItem } from "./callOptions";
 
 export interface StaffMember {
   id: string;
@@ -12,7 +13,9 @@ export interface AdminStats {
   totalContacts: number;
   totalCallsToday: number;
   interested: number;
-  maybe: number;
+  notInterested: number;
+  wrongNumber: number;
+  noAnswerCallback: number;
   orders: number;
   unassigned: number;
   overdueFollowUps: number;
@@ -48,8 +51,10 @@ export async function getAdminMetrics(): Promise<AdminStats> {
   return {
     totalContacts: contacts.length,
     totalCallsToday: calls.length,
-    interested: contacts.filter((c) => c.current_status === "Interested").length,
-    maybe: contacts.filter((c) => c.current_status === "Maybe").length,
+    interested: contacts.filter((c) => normalizeCallActionItem(c.current_status) === "Interested").length,
+    notInterested: contacts.filter((c) => normalizeCallActionItem(c.current_status) === "Not Interested").length,
+    wrongNumber: contacts.filter((c) => normalizeCallActionItem(c.current_status) === "Wrong Number").length,
+    noAnswerCallback: contacts.filter((c) => normalizeCallActionItem(c.current_status) === "No Answer / Callback").length,
     orders: calls.filter((c) => c.action === "Order Placed").length,
     unassigned: contacts.filter((c) => !c.assigned_to).length,
     overdueFollowUps: contacts.filter(

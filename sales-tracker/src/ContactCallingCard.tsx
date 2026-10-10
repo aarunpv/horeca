@@ -1,10 +1,16 @@
 import React, { useState } from "react";
 import { generateGoogleCalendarUrl } from "./calendarUtils";
+import {
+  CALL_ACTION_ITEMS,
+  OUTCOMES_BY_ACTION_ITEM,
+  type CallActionItem,
+  type CallOutcome,
+} from "./callOptions";
 
 export interface CallLogPayload {
   contactId: string;
-  status: string;
-  action: string;
+  status: CallActionItem;
+  action: CallOutcome | "";
   notes: string;
   followUpDate?: string;
 }
@@ -23,29 +29,36 @@ interface ContactProps {
 }
 
 export const ContactCallingCard: React.FC<ContactProps> = ({ contact, onSaveOutcome }) => {
-  const [status, setStatus] = useState<string>("Interested");
-  const [action, setAction] = useState<string>("");
+  const [status, setStatus] = useState<CallActionItem>("Interested");
+  const [action, setAction] = useState<CallOutcome | "">("");
   const [followUpDate, setFollowUpDate] = useState<string>("");
   const [notes, setNotes] = useState<string>("");
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [saveError, setSaveError] = useState<string | null>(null);
 
-  const statuses = ["Interested", "No Answer / Callback", "Not Interested", "Wrong Number"];
-  const actions = [
-    "Quote Sent",
-    "Follow-up Required",
-    "Order Placed",
-    "Meeting Requested",
-    "Try Again Later",
-    "Callback Requested",
-    "Message Received",
-  ];
+  const outcomes = OUTCOMES_BY_ACTION_ITEM[status];
   const requiresFollowUp =
     status === "No Answer / Callback" ||
-    action === "Follow-up Required" ||
+    action === "Followup Required" ||
     action === "Meeting Requested" ||
     action === "Try Again Later" ||
     action === "Callback Requested";
+
+  const handleStatusChange = (nextStatus: CallActionItem) => {
+    const nextOutcomes = OUTCOMES_BY_ACTION_ITEM[nextStatus];
+    const nextAction = action && nextOutcomes.includes(action) ? action : "";
+    setStatus(nextStatus);
+    setAction(nextAction);
+    if (!(
+      nextStatus === "No Answer / Callback" ||
+      nextAction === "Followup Required" ||
+      nextAction === "Meeting Requested" ||
+      nextAction === "Try Again Later" ||
+      nextAction === "Callback Requested"
+    )) {
+      setFollowUpDate("");
+    }
+  };
 
   const handleSave = async () => {
     setSaveError(null);
@@ -99,13 +112,13 @@ export const ContactCallingCard: React.FC<ContactProps> = ({ contact, onSaveOutc
 
       <div className="border-t border-gray-100 pt-3 space-y-3">
         <div>
-          <label className="text-[11px] font-bold text-gray-500 uppercase">Outcome Status</label>
+          <label className="text-[11px] font-bold text-gray-500 uppercase">Call action</label>
           <div className="flex flex-wrap gap-1.5 mt-1">
-            {statuses.map((s) => (
+            {CALL_ACTION_ITEMS.map((s) => (
               <button
                 key={s}
                 type="button"
-                onClick={() => setStatus(s)}
+                onClick={() => handleStatusChange(s)}
                 className={`text-xs px-2.5 py-1.5 rounded-lg border font-medium transition ${
                   status === s
                     ? "bg-gray-900 text-white border-gray-900 shadow-sm"
@@ -118,15 +131,20 @@ export const ContactCallingCard: React.FC<ContactProps> = ({ contact, onSaveOutc
           </div>
         </div>
 
-        {(status === "Interested" || status === "Maybe") && (
+        {outcomes.length > 0 && (
           <div>
-            <label className="text-[11px] font-bold text-gray-500 uppercase">Action</label>
+            <label className="text-[11px] font-bold text-gray-500 uppercase">Outcome</label>
             <div className="flex flex-wrap gap-1.5 mt-1">
-              {actions.map((act) => (
+              {outcomes.map((act) => (
                 <button
                   key={act}
                   type="button"
-                  onClick={() => setAction(act)}
+                  onClick={() => {
+                    setAction(act);
+                    if (!["Followup Required", "Meeting Requested", "Try Again Later", "Callback Requested"].includes(act)) {
+                      setFollowUpDate("");
+                    }
+                  }}
                   className={`text-xs px-2.5 py-1.5 rounded-lg border font-medium transition ${
                     action === act
                       ? "bg-purple-600 text-white border-purple-600 shadow-sm"
@@ -140,30 +158,32 @@ export const ContactCallingCard: React.FC<ContactProps> = ({ contact, onSaveOutc
           </div>
         )}
 
-        <div>
-          <label className="text-[11px] font-bold text-gray-500 uppercase">Next Follow-Up</label>
-          <input
-            type="datetime-local"
-            value={followUpDate}
-            onChange={(e) => setFollowUpDate(e.target.value)}
-            className="w-full mt-1 p-2 text-xs border rounded-lg bg-gray-50 focus:bg-white"
-          />
-          {followUpDate && (
-            <a
-              href={generateGoogleCalendarUrl({
-                businessName: contact.name,
-                phone: contact.phone_raw,
-                notes,
-                startTime: new Date(followUpDate),
-              })}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 text-xs text-blue-600 font-semibold mt-1.5 hover:underline"
-            >
-              📅 Open in Google Calendar
-            </a>
-          )}
-        </div>
+        {requiresFollowUp && (
+          <div>
+            <label className="text-[11px] font-bold text-gray-500 uppercase">Next Follow-Up</label>
+            <input
+              type="datetime-local"
+              value={followUpDate}
+              onChange={(e) => setFollowUpDate(e.target.value)}
+              className="w-full mt-1 p-2 text-xs border rounded-lg bg-gray-50 focus:bg-white"
+            />
+            {followUpDate && (
+              <a
+                href={generateGoogleCalendarUrl({
+                  businessName: contact.name,
+                  phone: contact.phone_raw,
+                  notes,
+                  startTime: new Date(followUpDate),
+                })}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 text-xs text-blue-600 font-semibold mt-1.5 hover:underline"
+              >
+                📅 Open in Google Calendar
+              </a>
+            )}
+          </div>
+        )}
 
         <div>
           <label className="text-[11px] font-bold text-gray-500 uppercase">Notes</label>

@@ -10,16 +10,20 @@ The working application is in [`sales-tracker/`](./sales-tracker/). It is a Reac
 - Email/password sign-in and sign-up. The database trigger creates new profiles as `staff`; admin promotion is a separate privileged operation.
 - Role-based access for admins and staff, enforced by Supabase row-level security. Staff can access their assigned contacts; admins can access all contacts.
 - CSV import with Indian mobile-number normalization, invalid-row handling, duplicate review, and choices to merge/keep/ignore.
-- Admin dashboard with clickable metric cards and detail views for contacts/calls; category, zone, status, and assignee filters; bulk assignment and unassignment.
-- Staff calling queue with a left-side filter menu, click-to-call, outcome/actions, notes, follow-up scheduling, Google Calendar event link, and append-only call history.
+- Admin dashboard with clickable metric cards and detail views for contacts/calls; category, zone, status, and assignee filters; bulk assignment and unassignment. Call action items are Interested, Not Interested, Wrong Number, and No Answer / Callback; outcomes are Quote Sent, Followup Required, Order Placed, Meeting Requested, Try Again Later, and Callback Requested.
+- A single Staff Activity card on the admin dashboard opens a staff list; selecting an individual opens a full-screen report with current assignments, lead status counts, all-time call outcomes/actions, call history, and CSV/PDF downloads. The dashboard also alerts when active staff have no assigned contacts or no remaining contacts in Not Contacted status.
+- Dashboard card groups use vertical lists with expand/collapse controls.
+- Admin and staff dashboards include an activity calendar for calls and scheduled follow-ups, filterable by today, specific date, and date range. Admins can filter by staff and metric; staff can filter by metric only.
+- Staff calling queue with a visible slide-out Contacts filter menu, full-width responsive contact cards, click-to-call, outcome/actions, notes, follow-up scheduling, Google Calendar event link, and append-only call history.
 - Responsive contact-card layouts for mobile, plus a PWA manifest, install icon, and service worker app-shell cache.
+- Light and dark themes across sign-in, admin, and staff screens, with a persistent user preference and system-preference default; dashboard lists use full-width orange, blue, green, red, and purple cards with a subtle lift, while dark mode retains navy app surfaces.
 - Supabase schema, RLS, Auth configuration, and GitHub Actions deployment workflow are maintained in source control.
 
 ### Important current limitations
 
 - The PWA cannot read carrier call logs or automatically obtain answered state or call duration. Call outcomes are entered by staff. Accurate call telemetry requires a telephony provider integration.
 - The Google Calendar link opens a draft event; direct two-way calendar synchronization and automatic reminders are not implemented.
-- Dashboard metrics currently cover the implemented summaries; custom date-range reporting and the full reporting suite described below remain future work.
+- Dashboard metrics currently cover the implemented summaries; custom date-range metric summaries and the full reporting suite described below remain future work. The activity calendar does support date and date-range activity browsing.
 - Admin user lifecycle management and full contact edit/delete screens are not yet implemented.
 - Supabase changes deploy through GitHub Actions when the deployment workflow and Supabase files are pushed to `master`; configuring the required GitHub secrets/variable is a prerequisite.
 
@@ -27,6 +31,12 @@ The working application is in [`sales-tracker/`](./sales-tracker/). It is a Reac
 
 - [Publish/update the PWA on Vercel](./sales-tracker/docs/vercel-deployment.md)
 - [Deploy Supabase schema and Auth configuration through GitHub](./sales-tracker/docs/supabase-deployment.md)
+- [Use admin staff activity and download reports](./sales-tracker/docs/admin-dashboard.md)
+- [Use the staff calling queue](./sales-tracker/docs/staff-calling.md)
+
+### Documentation maintenance
+
+When CRM features are added or changed, update this status and the relevant user/deployment documentation in the same change so they remain aligned with the app.
 
 The sections below retain the original product requirements and roadmap. Items not listed under “Implemented” above should be treated as requested/planned functionality, not as a claim that it is already available.
 
@@ -43,118 +53,34 @@ I want to setup a CRM
 I want to use a DB to store the data
 
 ## Call workflow
-  Open contact and call
-  Status - Not Contacted, Interested, Not Interested, No Answer / Callback, Wrong Number
-  
-  Interested Outcomes
-  - Quote sent
-  - Order placed 
-  - Follow-up Call - Date Time - Block Calendar
-  - Meeting Requested - Date Time - Block Calendar
-  - Setup reminder
-  - Notes
 
-  Callback/ No Answer Outcomes
-  - Follow-up Call - Date Time - Block Calendar
-  - Setup reminder 
-  - Notes 
+**Not Contacted** is the initial contact state. After a call, staff selects exactly one of these four call action items:
 
-  Wrong Number
+- Interested
+- Not Interested
+- Wrong Number
+- No Answer / Callback
 
-  Not Interested - Outcomes
-  - Notes - Reasons
+Applicable outcomes are:
 
-## Activity Dashboard
+- Quote Sent
+- Followup Required
+- Order Placed
+- Meeting Requested
+- Try Again Later
+- Callback Requested
 
-Buttons - (TODAY) (Custom DATE) (Date Range)
+Interested calls can have Quote Sent, Followup Required, Order Placed, or Meeting Requested outcomes. No Answer / Callback calls can have Followup Required, Try Again Later, or Callback Requested outcomes. Not Interested and Wrong Number calls do not require a separate outcome. A follow-up date/time is required for No Answer / Callback and for outcomes that schedule another contact. Staff can add notes and open a Google Calendar event draft for a scheduled follow-up.
 
-Calls made       37
-Interested       08
-Not interested   15
-Follow-ups       07
-Orders           03
-Wrong Numbers    02
+## Activity dashboard
 
-And filters:
+The admin and staff activity calendars can show calls and scheduled follow-ups by today, a selected date, or a date range. The admin can filter by staff; both roles can filter by metric, action item, and outcome.
 
-All | To Call | Follow-up | Interested  | No Answer / Call back  | Orders
+The staff contact queue includes To Call, Follow-up, each of the four call action items, Orders, and All. Orders are contacts with a logged Order Placed outcome; Order Placed is not a call action item.
 
-## CSV Import
-PWA imports data from CSV to DB
+## CSV import and contact list
 
-Phone number must be validated for Indian phone numbers
-Option to Merge or Keep contacts with duplicate phone numbers
-
-### Contact list
-Each contact shows status 
-
-name           status          action
-name 001       not contacted   Call
-name 002       quote sent      follow up
-name 003       order placed    none
-name 004       interested      follow up
-name 005       wrong number    none
-name 006       not interested  none
-
-Click the contact name for action or action history
-
-## After call flow
-
-How did the call go?
-
-🟢 Interested
-🟡 Call back / No Answer
-🔴 Not Interested
-⚫ Wrong Number
-
-
-### Status Screen
-```
-Interested
-
-Next Action: 
-☐ Quote sent
-☐ Follow-up required
-☐ Order placed
-☐ Meeting requested
-
-Follow-up date: 06/10/2026
-Follow-up time: 5:30 PM
-
-Add to Google calendar or calendar
-
-Notes:
-____________________
-
-[ SAVE ]
-
-```
-
-```
-
-No Answer / Callback
-
-☐ Try again later
-☐ Requested callback
-☐ Responded with message
-
-Next call:
-- Date: ______
-- Time: ______
-
-Add to Google calendar or calendar
-
-[ SAVE ]
-```
-
-```
-Wrong Number
-
-Notes:
-____________________
-
-[ SAVE ]
-```
+The PWA imports CSV data into the database, validates Indian mobile numbers, and supports duplicate phone-number review with merge/keep/ignore choices. Contact cards show the current call action item (or Not Contacted before a first call), scheduled follow-up when present, and options to call/update or review history.
 
 ### History
 Do not overwrite the previous call information
@@ -168,16 +94,16 @@ Current status: 🟡 Interested
 CALL HISTORY
 ────────────────────
 06 Oct  10:32 AM
-No Answer
+Action item: No Answer / Callback
 
 06 Oct  2:15 PM
-Interested
-Requested callback
+Action item: No Answer / Callback
+Outcome: Callback Requested
 Follow-up: 07 Oct 11:00 AM
 
 07 Oct  11:05 AM
-Interested
-Quote sent
+Action item: Interested
+Outcome: Quote Sent
 
 ```
 
@@ -193,8 +119,7 @@ Quote sent
                        │
         ┌──────────────┼──────────────┐
         ▼              ▼              ▼
-    Interested       No Answer       Not Interested
-                     Callback
+    Interested    Not Interested    Wrong Number    No Answer / Callback
         │              │
         │              ▼
         │        Schedule Follow-up
@@ -256,11 +181,7 @@ Call contacts
 Update call status
 Add notes
 Schedule follow-ups
-Add actions such as:
-Callback requested
-Message received
-Quote sent
-Order placed
+Use the four call action items and six applicable outcomes listed in the Call workflow section
 See their own call history and follow-ups
 
 They should not be able to see or modify other staff's activity unless you want that.
@@ -276,7 +197,7 @@ Add/remove staff
 See every staff member's activity
 See call statistics
 See overdue follow-ups
-See interested/maybe/not-interested numbers
+See counts for each of the four call action items and six outcomes
 Identify duplicate phone numbers
 Reassign contacts
 Edit/delete contacts
@@ -349,11 +270,10 @@ Today
 ────────────────────────
 
 Calls                  147
-Answered                96
-No Answer               38
 Interested              24
-Maybe                   31
 Not Interested          41
+Wrong Number             8
+No Answer / Callback    38
 Orders                   8
 
 FOLLOW-UPS
@@ -390,24 +310,24 @@ ABC Traders
 
 06 Oct 10:32
 Rahul → Called
-Result: No Answer
+Action item: No Answer / Callback
 
 06 Oct 14:15
 Rahul → Called
-Result: Maybe
-Action: Callback requested
+Action item: No Answer / Callback
+Outcome: Callback Requested
 
 06 Oct 14:16
 System → Calendar reminder created
 
 07 Oct 11:03
 Rahul → Called
-Result: Interested
-Action: Quote sent
+Action item: Interested
+Outcome: Quote Sent
 
 08 Oct 16:20
 Amit → Updated
-Action: Order placed
+Outcome: Order Placed
 ```
 ## Contact assignment
 

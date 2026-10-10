@@ -1,11 +1,15 @@
 import React, { useState, type FormEvent } from "react";
+import { ThemeToggle } from "./ThemeToggle";
+import type { Theme } from "./useTheme";
 
 interface SignInPageProps {
   onSignIn: (email: string, password: string) => Promise<void>;
   onSignUp: (name: string, email: string, password: string) => Promise<void>;
+  theme: Theme;
+  onToggleTheme: () => void;
 }
 
-export const SignInPage: React.FC<SignInPageProps> = ({ onSignIn, onSignUp }) => {
+export const SignInPage: React.FC<SignInPageProps> = ({ onSignIn, onSignUp, theme, onToggleTheme }) => {
   const [mode, setMode] = useState<"sign-in" | "sign-up">("sign-in");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -37,7 +41,10 @@ export const SignInPage: React.FC<SignInPageProps> = ({ onSignIn, onSignUp }) =>
   };
 
   return (
-    <main className="min-h-screen bg-[#edf3ed] px-4 py-10 flex items-center justify-center">
+    <main className="relative flex min-h-screen items-center justify-center bg-[#edf3ed] px-4 py-10 dark:bg-gray-950">
+      <div className="absolute right-4 top-4">
+        <ThemeToggle theme={theme} onToggle={onToggleTheme} />
+      </div>
       <section className="w-full max-w-md overflow-hidden rounded-2xl border border-emerald-950/10 bg-white shadow-xl shadow-emerald-950/10">
         <div className="bg-emerald-950 px-8 py-8 text-white">
           <p className="text-xs font-semibold uppercase tracking-[0.16em] text-emerald-200">Horeca Sales</p>

@@ -1,4 +1,5 @@
 import React from "react";
+import { normalizeCallActionItem, normalizeCallOutcome } from "./callOptions";
 
 export interface HistoryItem {
   id: string;
@@ -53,10 +54,12 @@ export const CustomerHistoryDrawer: React.FC<CustomerHistoryDrawerProps> = ({
                 {item.type === "call" ? (
                   <div className="bg-gray-50 rounded-xl p-3 border border-gray-100 text-xs">
                     <div className="flex items-center gap-2 mb-1">
-                      <span className="font-bold text-gray-900">{item.status}</span>
+                      <span className="font-bold text-gray-900">
+                        Action: {normalizeCallActionItem(item.status || "")}
+                      </span>
                       {item.action && (
                         <span className="bg-purple-100 text-purple-800 px-2 py-0.5 rounded font-medium text-[10px]">
-                          {item.action}
+                          Outcome: {normalizeCallOutcome(item.action)}
                         </span>
                       )}
                     </div>

@@ -13,9 +13,22 @@ import { processCsvBatch, type NormalizedContact, type RawCsvRow } from "./csvPa
 import type { ContactItem } from "./StaffCallingDashboard";
 import { supabase } from "./supabaseClient";
 import type { ImportDuplicateGroup } from "./adminService";
+import { downloadCsvReport, downloadPdfReport } from "./reportExports";
+import { CollapsibleGroup } from "./CollapsibleGroup";
+import { ActivityCalendar } from "./ActivityCalendar";
+import { CALL_ACTION_ITEMS, normalizeCallActionItem, normalizeCallOutcome } from "./callOptions";
 
 type DuplicateChoice = "merge" | "keep" | "ignore";
-type MetricKey = "leads" | "callsToday" | "interested" | "maybe" | "orders" | "unassigned" | "overdue";
+type MetricKey =
+  | "leads"
+  | "callsToday"
+  | "interested"
+  | "notInterested"
+  | "wrongNumber"
+  | "noAnswerCallback"
+  | "orders"
+  | "unassigned"
+  | "overdue";
 type MetricCall = {
   id: string;
   contact_id: string;
@@ -25,6 +38,7 @@ type MetricCall = {
   notes: string | null;
   called_at: string;
 };
+type StaffActivityCall = MetricCall;
 type PendingImport = {
   uniqueContacts: NormalizedContact[];
   duplicateGroups: ImportDuplicateGroup[];
@@ -53,6 +67,31 @@ export const AdminDashboard: React.FC = () => {
   const [metricCalls, setMetricCalls] = useState<MetricCall[]>([]);
   const [isMetricLoading, setIsMetricLoading] = useState(false);
   const [metricError, setMetricError] = useState<string | null>(null);
+  const [staffActivityView, setStaffActivityView] = useState<"dashboard" | "staff-list" | "staff-detail">("dashboard");
+  const [staffActivityTarget, setStaffActivityTarget] = useState<StaffMember | null>(null);
+  const [staffActivityCalls, setStaffActivityCalls] = useState<StaffActivityCall[]>([]);
+  const [isStaffActivityLoading, setIsStaffActivityLoading] = useState(false);
+  const [staffActivityError, setStaffActivityError] = useState<string | null>(null);
+
+  const loadAllContacts = async (): Promise<ContactItem[]> => {
+    if (!supabase) return [];
+    const contacts: ContactItem[] = [];
+    const pageSize = 1000;
+    for (let offset = 0; ; offset += pageSize) {
+      const { data, error } = await supabase
+        .from("contacts")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .range(offset, offset + pageSize - 1);
+      if (error) throw error;
+      const page = (data || []).map((contact) => ({
+        ...contact,
+        current_status: normalizeCallActionItem(contact.current_status),
+      })) as ContactItem[];
+      contacts.push(...page);
+      if (page.length < pageSize) return contacts;
+    }
+  };
 
   const loadData = async () => {
     if (!supabase) return;
@@ -62,12 +101,11 @@ export const AdminDashboard: React.FC = () => {
       const [statsData, staffData, contactsRes] = await Promise.all([
         getAdminMetrics(),
         getStaffList(),
-        supabase.from("contacts").select("*").order("created_at", { ascending: false }),
+        loadAllContacts(),
       ]);
-      if (contactsRes.error) throw contactsRes.error;
       setStats(statsData);
       setStaff(staffData);
-      setContacts(contactsRes.data || []);
+      setContacts(contactsRes);
       if (staffData.length > 0 && !selectedStaffId) setSelectedStaffId(staffData[0].id);
     } catch (err: unknown) {
       setDashboardError(err instanceof Error ? err.message : "Dashboard data could not be loaded.");
@@ -109,12 +147,27 @@ export const AdminDashboard: React.FC = () => {
     });
   }, [contacts, categoryFilter, zoneFilter, statusFilter, assignedFilter, searchQuery]);
 
+  const staffAssignmentAlerts = useMemo(
+    () =>
+      staff.flatMap((member) => {
+        const assignedContacts = contacts.filter((contact) => contact.assigned_to === member.id);
+        const remainingToCall = assignedContacts.filter(
+          (contact) => contact.current_status === "Not Contacted"
+        ).length;
+        if (assignedContacts.length > 0 && remainingToCall > 0) return [];
+        return [{ member, assignedCount: assignedContacts.length, remainingToCall }];
+      }),
+    [contacts, staff]
+  );
+
   const metricContacts = useMemo(() => {
     if (!selectedMetric) return [];
     return contacts.filter((contact) => {
       if (selectedMetric === "leads") return true;
-      if (selectedMetric === "interested") return contact.current_status === "Interested";
-      if (selectedMetric === "maybe") return contact.current_status === "Maybe";
+      if (selectedMetric === "interested") return normalizeCallActionItem(contact.current_status) === "Interested";
+      if (selectedMetric === "notInterested") return normalizeCallActionItem(contact.current_status) === "Not Interested";
+      if (selectedMetric === "wrongNumber") return normalizeCallActionItem(contact.current_status) === "Wrong Number";
+      if (selectedMetric === "noAnswerCallback") return normalizeCallActionItem(contact.current_status) === "No Answer / Callback";
       if (selectedMetric === "unassigned") return !contact.assigned_to;
       if (selectedMetric === "overdue") {
         return Boolean(
@@ -167,7 +220,9 @@ export const AdminDashboard: React.FC = () => {
     leads: "All Leads",
     callsToday: "Calls Today",
     interested: "Interested Leads",
-    maybe: "Maybe Leads",
+    notInterested: "Not Interested Leads",
+    wrongNumber: "Wrong Number Leads",
+    noAnswerCallback: "No Answer / Callback Leads",
     orders: "Orders",
     unassigned: "Unassigned Leads",
     overdue: "Overdue Follow-ups",
@@ -178,12 +233,170 @@ export const AdminDashboard: React.FC = () => {
         { key: "leads", label: "Total Leads", value: stats.totalContacts, valueClass: "text-gray-900" },
         { key: "callsToday", label: "Calls Today", value: stats.totalCallsToday, valueClass: "text-emerald-600" },
         { key: "interested", label: "Interested", value: stats.interested, valueClass: "text-blue-600" },
-        { key: "maybe", label: "Maybe", value: stats.maybe, valueClass: "text-amber-600" },
+        { key: "notInterested", label: "Not Interested", value: stats.notInterested, valueClass: "text-rose-600" },
+        { key: "wrongNumber", label: "Wrong Number", value: stats.wrongNumber, valueClass: "text-orange-600" },
+        { key: "noAnswerCallback", label: "No Answer / Callback", value: stats.noAnswerCallback, valueClass: "text-amber-600" },
         { key: "orders", label: "Orders", value: stats.orders, valueClass: "text-purple-600" },
         { key: "unassigned", label: "Unassigned", value: stats.unassigned, valueClass: "text-rose-600" },
         { key: "overdue", label: "Overdue", value: stats.overdueFollowUps, valueClass: "text-orange-600" },
       ]
     : [];
+
+  const assignedToStaff = (staffId: string) => contacts.filter((contact) => contact.assigned_to === staffId);
+
+  const openStaffActivity = async (member: StaffMember) => {
+    setStaffActivityTarget(member);
+    setStaffActivityView("staff-detail");
+    setStaffActivityCalls([]);
+    setStaffActivityError(null);
+    if (!supabase) {
+      setStaffActivityError("Supabase is not configured.");
+      return;
+    }
+
+    setIsStaffActivityLoading(true);
+    try {
+      const calls: StaffActivityCall[] = [];
+      const pageSize = 1000;
+      for (let offset = 0; ; offset += pageSize) {
+        const { data, error } = await supabase
+          .from("calls")
+          .select("id, contact_id, user_id, status, action, notes, called_at")
+          .eq("user_id", member.id)
+          .order("called_at", { ascending: false })
+          .range(offset, offset + pageSize - 1);
+        if (error) throw error;
+        const page = (data || []) as StaffActivityCall[];
+        calls.push(...page);
+        if (page.length < pageSize) break;
+      }
+      setStaffActivityCalls(calls);
+    } catch (error: unknown) {
+      setStaffActivityError(error instanceof Error ? error.message : "Could not load staff activity.");
+    } finally {
+      setIsStaffActivityLoading(false);
+    }
+  };
+
+  const exportFilteredContacts = async (format: "csv" | "pdf") => {
+    try {
+      const rows = filteredContacts.map((contact) => ({
+        Contact: contact.name,
+        Category: contact.category,
+        Zone: contact.zone,
+        Phone: contact.phone_raw,
+        Status: contact.current_status,
+        "Next follow-up": contact.next_follow_up_at || "",
+        "Assigned to": staff.find((member) => member.id === contact.assigned_to)?.name || "Unassigned",
+      }));
+      const date = new Date().toISOString().slice(0, 10);
+      if (format === "csv") {
+        downloadCsvReport(`horeca-leads-${date}.csv`, rows);
+      } else {
+        await downloadPdfReport(
+          `horeca-leads-${date}.pdf`,
+          "Horeca CRM — Lead Report",
+          `${filteredContacts.length} leads · Exported ${new Date().toLocaleString("en-IN")}`,
+          ["Contact", "Category", "Zone", "Phone", "Status", "Follow-up", "Assigned to"],
+          rows.map((row) => [
+            row.Contact,
+            row.Category,
+            row.Zone,
+            row.Phone,
+            row.Status,
+            row["Next follow-up"] ? new Date(row["Next follow-up"]).toLocaleString("en-IN") : "—",
+            row["Assigned to"],
+          ])
+        );
+      }
+    } catch (error: unknown) {
+      setDashboardError(error instanceof Error ? error.message : "Could not export lead report.");
+    }
+  };
+
+  const exportStaffReport = async (format: "csv" | "pdf") => {
+    if (!staffActivityTarget) return;
+    try {
+      const assigned = assignedToStaff(staffActivityTarget.id);
+      const contactById = new Map(contacts.map((contact) => [contact.id, contact]));
+      const rows = [
+        ...assigned.map((contact) => ({
+          "Record type": "Assignment",
+          Staff: staffActivityTarget.name,
+          Contact: contact.name,
+          Category: contact.category,
+          Zone: contact.zone,
+          Phone: contact.phone_raw,
+          "Current status": contact.current_status,
+          "Next follow-up": contact.next_follow_up_at || "",
+          "Call date": "",
+          "Action item": "",
+          Outcome: "",
+          Notes: "",
+        })),
+        ...staffActivityCalls.map((call) => {
+          const contact = contactById.get(call.contact_id);
+          return {
+            "Record type": "Call",
+            Staff: staffActivityTarget.name,
+            Contact: contact?.name || "Contact no longer available",
+            Category: contact?.category || "",
+            Zone: contact?.zone || "",
+            Phone: contact?.phone_raw || "",
+            "Current status": contact?.current_status || "",
+            "Next follow-up": contact?.next_follow_up_at || "",
+            "Call date": call.called_at,
+            "Action item": normalizeCallActionItem(call.status),
+            Outcome: normalizeCallOutcome(call.action) || "",
+            Notes: call.notes || "",
+          };
+        }),
+      ];
+      const date = new Date().toISOString().slice(0, 10);
+      const filename = `horeca-${staffActivityTarget.name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-activity-${date}`;
+      if (format === "csv") {
+        downloadCsvReport(`${filename}.csv`, rows);
+      } else {
+        await downloadPdfReport(
+          `${filename}.pdf`,
+          `Horeca CRM — ${staffActivityTarget.name}`,
+          `${assigned.length} currently assigned leads · ${staffActivityCalls.length} call records (all time)`,
+          ["Type", "Contact", "Category", "Zone", "Phone", "Current status", "Follow-up", "Call date", "Action item", "Outcome", "Notes"],
+          rows.map((row) => [
+            row["Record type"],
+            row.Contact,
+            row.Category,
+            row.Zone,
+            row.Phone,
+            row["Current status"],
+            row["Next follow-up"] ? new Date(row["Next follow-up"]).toLocaleString("en-IN") : "—",
+            row["Call date"] ? new Date(row["Call date"]).toLocaleString("en-IN") : "—",
+            row["Action item"],
+            row.Outcome,
+            row.Notes,
+          ])
+        );
+      }
+    } catch (error: unknown) {
+      setStaffActivityError(error instanceof Error ? error.message : "Could not export staff report.");
+    }
+  };
+
+  const selectedStaffContacts = staffActivityTarget ? assignedToStaff(staffActivityTarget.id) : [];
+  const assignedStatusCounts = selectedStaffContacts.reduce<Record<string, number>>((counts, contact) => {
+    counts[contact.current_status] = (counts[contact.current_status] || 0) + 1;
+    return counts;
+  }, {});
+  const callActionCounts = staffActivityCalls.reduce<Record<string, number>>((counts, call) => {
+    const actionItem = normalizeCallActionItem(call.status);
+    counts[actionItem] = (counts[actionItem] || 0) + 1;
+    return counts;
+  }, {});
+  const callOutcomeCounts = staffActivityCalls.reduce<Record<string, number>>((counts, call) => {
+    const outcome = normalizeCallOutcome(call.action);
+    if (outcome) counts[outcome] = (counts[outcome] || 0) + 1;
+    return counts;
+  }, {});
 
   const handleToggleSelect = (id: string) => {
     const updated = new Set(selectedContactIds);
@@ -333,24 +546,106 @@ export const AdminDashboard: React.FC = () => {
         )}
 
         {stats && (
-          <div className="grid grid-cols-2 gap-2 sm:gap-3 md:grid-cols-4 xl:grid-cols-7">
-            {metricCards.map((card) => (
-              <button
-                key={card.key}
-                type="button"
-                onClick={() => void openMetricDetails(card.key)}
-                aria-label={`View ${card.label.toLowerCase()} details`}
-                className="min-h-24 min-w-0 touch-manipulation rounded-xl border border-gray-200 bg-white p-3 text-left transition hover:-translate-y-0.5 hover:border-emerald-300 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 active:scale-[0.98]"
-              >
-                <span className="block text-[10px] font-bold uppercase leading-tight text-gray-500">{card.label}</span>
-                <p className={`mt-1 text-xl font-bold ${card.valueClass}`}>{card.value}</p>
-                <span className="mt-1 block text-[10px] font-semibold text-emerald-800">Tap for details →</span>
-              </button>
-            ))}
-          </div>
+          <CollapsibleGroup title="Dashboard metrics" count={metricCards.length}>
+            <div className="crm-colorful-list space-y-2">
+              {metricCards.map((card) => (
+                <button
+                  key={card.key}
+                  type="button"
+                  onClick={() => void openMetricDetails(card.key)}
+                  aria-label={`View ${card.label.toLowerCase()} details`}
+                  className="crm-color-card flex min-h-16 w-full touch-manipulation items-center justify-between gap-4 rounded-xl border px-4 py-3 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 active:scale-[0.99]"
+                >
+                  <span className="min-w-0">
+                    <span className="block truncate text-base font-bold leading-tight text-gray-500">{card.label}</span>
+                  </span>
+                  <span className={`shrink-0 text-xl font-bold ${card.valueClass}`}>{card.value}</span>
+                </button>
+              ))}
+            </div>
+          </CollapsibleGroup>
         )}
 
-        <div className="bg-white p-4 rounded-xl border border-gray-200">
+        {staffAssignmentAlerts.length > 0 && (
+          <CollapsibleGroup title="New staff assignments may be needed" count={staffAssignmentAlerts.length}>
+            <section aria-labelledby="staff-assignment-alert-heading" className="rounded-xl border border-amber-300 bg-amber-50 p-4">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h2 id="staff-assignment-alert-heading" className="text-sm font-bold text-amber-900">
+                  New staff assignments may be needed
+                </h2>
+                <p className="mt-1 text-xs text-amber-800">
+                  These staff members have no untouched leads left in their current assignments.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setStaffActivityView("staff-list")}
+                className="min-h-10 rounded-lg border border-amber-400 bg-white px-3 py-2 text-xs font-semibold text-amber-900 hover:bg-amber-100"
+              >
+                Open staff activity
+              </button>
+            </div>
+            <ul className="mt-3 divide-y divide-amber-200">
+              {staffAssignmentAlerts.map(({ member, assignedCount, remainingToCall }) => (
+                <li key={member.id} className="flex flex-wrap items-center justify-between gap-2 py-2 first:pt-0 last:pb-0">
+                  <span className="text-sm font-semibold text-amber-950">{member.name}</span>
+                  <span className="text-xs text-amber-800">
+                    {assignedCount === 0
+                      ? "No contacts currently assigned"
+                      : `${assignedCount} assigned · ${remainingToCall} not contacted`}
+                  </span>
+                </li>
+              ))}
+            </ul>
+            </section>
+          </CollapsibleGroup>
+        )}
+
+        <CollapsibleGroup title="Activity calendar">
+          <ActivityCalendar
+            contacts={contacts}
+            staffOptions={staff.map(({ id, name }) => ({ id, name }))}
+          />
+        </CollapsibleGroup>
+
+        <CollapsibleGroup title="Staff Activity" count={staff.length}>
+          <button
+            type="button"
+            onClick={() => setStaffActivityView("staff-list")}
+            aria-label="Open staff activity dashboard"
+            className="crm-color-card flex min-h-16 w-full touch-manipulation items-center justify-between gap-4 rounded-xl border px-4 py-3 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 active:scale-[0.99]"
+          >
+            <span className="min-w-0">
+              <span className="block text-base font-bold uppercase leading-tight text-gray-500">Staff activity</span>
+            </span>
+            <span className="shrink-0 text-xl font-bold text-emerald-600">{staff.length}</span>
+          </button>
+        </CollapsibleGroup>
+
+        <CollapsibleGroup title="Leads" count={filteredContacts.length}>
+        <div>
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <p className="text-xs font-semibold text-gray-700">Export the leads matching the current filters</p>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => void exportFilteredContacts("csv")}
+                disabled={filteredContacts.length === 0}
+                className="min-h-10 rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Download CSV
+              </button>
+              <button
+                type="button"
+                onClick={() => void exportFilteredContacts("pdf")}
+                disabled={filteredContacts.length === 0}
+                className="min-h-10 rounded-lg bg-emerald-800 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-900 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Download PDF
+              </button>
+            </div>
+          </div>
           <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-6">
             <input
               type="search"
@@ -388,13 +683,9 @@ export const AdminDashboard: React.FC = () => {
             >
               <option value="All">Status: All</option>
               <option value="Not Contacted">Not Contacted</option>
-              <option value="Interested">Interested</option>
-              <option value="Maybe">Maybe</option>
-              <option value="No Answer / Callback">No Answer / Callback</option>
-              <option value="No Answer">No Answer</option>
-              <option value="Not Interested">Not Interested</option>
-              <option value="Wrong Number">Wrong Number</option>
-              <option value="Order Placed">Order Placed</option>
+              {CALL_ACTION_ITEMS.map((actionItem) => (
+                <option key={actionItem} value={actionItem}>{actionItem}</option>
+              ))}
             </select>
             <select
               value={assignedFilter}
@@ -425,81 +716,7 @@ export const AdminDashboard: React.FC = () => {
             <span>{selectedContactIds.size} Selected</span>
           </div>
 
-          <div className="hidden overflow-x-auto lg:block">
-            <table className="w-full text-left border-collapse text-xs">
-              <thead className="bg-gray-50 border-b border-gray-200 text-gray-600 font-semibold uppercase text-[10px]">
-                <tr>
-                  <th className="p-3 w-8"></th>
-                  <th className="p-3">Business</th>
-                  <th className="p-3">Zone / Category</th>
-                  <th className="p-3">Phone</th>
-                  <th className="p-3">Status</th>
-                  <th className="p-3">Rating</th>
-                  <th className="p-3">Assigned To</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100 text-gray-700">
-                {filteredContacts.length === 0 ? (
-                  <tr>
-                    <td colSpan={7} className="text-center py-8 text-gray-400">
-                      No leads match the filters.
-                    </td>
-                  </tr>
-                ) : (
-                  filteredContacts.map((contact) => {
-                    const isSelected = selectedContactIds.has(contact.id);
-                    const assignedStaffMember = staff.find((s) => s.id === contact.assigned_to);
-
-                    return (
-                      <tr
-                        key={contact.id}
-                        className={`hover:bg-gray-50 transition cursor-pointer ${isSelected ? "bg-emerald-50/40" : ""}`}
-                        onClick={() => handleToggleSelect(contact.id)}
-                      >
-                        <td className="p-3" onClick={(e) => e.stopPropagation()}>
-                          <input
-                            type="checkbox"
-                            checked={isSelected}
-                            onChange={() => handleToggleSelect(contact.id)}
-                            className="rounded border-gray-300 text-emerald-600"
-                          />
-                        </td>
-                        <td className="p-3 font-bold text-gray-900">
-                          {contact.name}
-                          <p className="font-normal text-[11px] text-gray-500 line-clamp-1">{contact.address}</p>
-                        </td>
-                        <td className="p-3 whitespace-nowrap">
-                          <span className="px-2 py-0.5 rounded bg-gray-100 text-gray-700 text-[10px] font-medium">
-                            {contact.zone}
-                          </span>
-                        </td>
-                        <td className="p-3 font-mono">{contact.phone_raw}</td>
-                        <td className="p-3 whitespace-nowrap">
-                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-gray-100 text-gray-700">
-                            {contact.current_status}
-                          </span>
-                        </td>
-                        <td className="p-3 whitespace-nowrap">
-                          {contact.google_rating ? (
-                            <span className="text-amber-700 font-semibold">★ {contact.google_rating}</span>
-                          ) : "-"}
-                        </td>
-                        <td className="p-3 whitespace-nowrap">
-                          {assignedStaffMember ? (
-                            <span className="font-semibold text-gray-800">{assignedStaffMember.name}</span>
-                          ) : (
-                            <span className="text-rose-600 font-semibold">Unassigned</span>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
-          </div>
-
-          <div className="space-y-3 p-3 lg:hidden">
+          <div className="crm-colorful-list space-y-3 px-3 pb-3">
             {filteredContacts.length === 0 ? (
               <p className="py-8 text-center text-sm text-gray-500">No leads match the filters.</p>
             ) : (
@@ -509,8 +726,8 @@ export const AdminDashboard: React.FC = () => {
                 return (
                   <article
                     key={contact.id}
-                    className={`min-w-0 rounded-xl border p-3 transition ${
-                      isSelected ? "border-emerald-300 bg-emerald-50/50" : "border-gray-200 bg-white"
+                    className={`crm-color-card min-w-0 rounded-xl border p-3 transition ${
+                      isSelected ? "ring-2 ring-white" : ""
                     }`}
                   >
                     <div className="flex min-w-0 items-start gap-3">
@@ -560,7 +777,250 @@ export const AdminDashboard: React.FC = () => {
             )}
           </div>
         </div>
+        </CollapsibleGroup>
       </main>
+
+      {staffActivityView === "staff-list" && (
+        <div className="fixed inset-0 z-50 flex min-h-dvh flex-col overflow-y-auto bg-gray-50">
+          <header className="flex items-center justify-between gap-3 border-b border-gray-200 bg-white px-4 py-4 sm:px-6">
+            <div>
+              <h1 className="text-lg font-bold text-gray-900">Staff Activity</h1>
+              <p className="mt-1 text-xs text-gray-500">Choose a staff member to view their detailed report.</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setStaffActivityView("dashboard")}
+              className="min-h-10 rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-100"
+            >
+              ← Admin dashboard
+            </button>
+          </header>
+          <main className="mx-auto w-full max-w-7xl flex-1 space-y-4 p-4 sm:p-6">
+            {staff.length === 0 ? (
+              <p className="rounded-xl border border-gray-200 bg-white p-4 text-sm text-gray-500">
+                No active staff accounts are available.
+              </p>
+            ) : (
+              <CollapsibleGroup title="Active staff" count={staff.length}>
+                <div className="crm-colorful-list space-y-2">
+                  {staff.map((member) => {
+                    const assigned = assignedToStaff(member.id);
+                    const completed = assigned.filter((contact) => contact.current_status !== "Not Contacted").length;
+                    return (
+                      <button
+                        key={member.id}
+                        type="button"
+                        onClick={() => void openStaffActivity(member)}
+                        aria-label={`View ${member.name}'s detailed activity report`}
+                        className="crm-color-card flex min-h-16 w-full items-center justify-between gap-4 rounded-xl border px-4 py-3 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600"
+                      >
+                        <span className="min-w-0">
+                          <span className="block truncate text-sm font-bold text-gray-900">{member.name}</span>
+                          <span className="mt-1 block text-xs text-gray-600">
+                            {assigned.length} assigned · {completed} with an outcome
+                          </span>
+                        </span>
+                        <span className="shrink-0 text-xs font-semibold text-emerald-800">View report →</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </CollapsibleGroup>
+            )}
+          </main>
+        </div>
+      )}
+
+      {staffActivityView === "staff-detail" && staffActivityTarget && (
+        <div className="fixed inset-0 z-50 flex min-h-dvh flex-col overflow-hidden bg-gray-50">
+          <section
+            aria-labelledby="staff-activity-title"
+            className="flex min-h-0 flex-1 flex-col overflow-hidden bg-white"
+          >
+            <header className="flex flex-wrap items-start justify-between gap-3 border-b border-gray-200 p-4 sm:p-5">
+              <div>
+                <h2 id="staff-activity-title" className="text-lg font-bold text-gray-900">
+                  {staffActivityTarget.name} — Staff Activity
+                </h2>
+                <p className="mt-1 text-xs text-gray-500">Assignment status and all-time call outcomes</p>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setStaffActivityTarget(null);
+                    setStaffActivityView("staff-list");
+                  }}
+                  className="min-h-10 rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-100"
+                >
+                  ← Staff list
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void exportStaffReport("csv")}
+                  disabled={isStaffActivityLoading || (selectedStaffContacts.length === 0 && staffActivityCalls.length === 0)}
+                  className="min-h-10 rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Download CSV
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void exportStaffReport("pdf")}
+                  disabled={isStaffActivityLoading || (selectedStaffContacts.length === 0 && staffActivityCalls.length === 0)}
+                  className="min-h-10 rounded-lg bg-emerald-800 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-900 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Download PDF
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setStaffActivityTarget(null);
+                    setStaffActivityView("dashboard");
+                  }}
+                  className="min-h-10 rounded-lg border border-gray-300 px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-100"
+                >
+                  Admin dashboard
+                </button>
+              </div>
+            </header>
+
+            <div className="min-h-0 flex-1 space-y-5 overflow-y-auto p-4 sm:p-5">
+              {staffActivityError && (
+                <p role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+                  {staffActivityError}
+                </p>
+              )}
+              {isStaffActivityLoading ? (
+                <p className="py-12 text-center text-sm text-gray-500">Loading staff call history...</p>
+              ) : (
+                <>
+                  <CollapsibleGroup title="Activity summary" count={4}>
+                    <div className="crm-colorful-list space-y-2">
+                    {[
+                      { label: "Currently assigned", value: selectedStaffContacts.length },
+                      { label: "Leads with outcome", value: selectedStaffContacts.filter((contact) => contact.current_status !== "Not Contacted").length },
+                      { label: "Call records", value: staffActivityCalls.length },
+                      { label: "Orders recorded", value: staffActivityCalls.filter((call) => call.action === "Order Placed").length },
+                    ].map((item) => (
+                      <div key={item.label} className="crm-color-card flex items-center justify-between gap-3 rounded-xl border px-4 py-3">
+                        <p className="text-[10px] font-bold uppercase text-gray-500">{item.label}</p>
+                        <p className="text-xl font-bold text-gray-900">{item.value}</p>
+                      </div>
+                    ))}
+                    </div>
+                  </CollapsibleGroup>
+
+                  <CollapsibleGroup title="Assigned lead status" count={Object.keys(assignedStatusCounts).length}>
+                    {Object.keys(assignedStatusCounts).length === 0 ? (
+                      <p className="text-xs text-gray-500">No leads are currently assigned to this staff member.</p>
+                    ) : (
+                      <div className="crm-colorful-list space-y-2">
+                        {Object.entries(assignedStatusCounts).map(([status, count]) => (
+                          <div key={status} className="crm-color-card flex items-center justify-between gap-3 rounded-xl border px-4 py-3 text-sm">
+                            <span className="font-semibold text-gray-700">{status}</span>
+                            <span className="font-bold text-gray-900">{count}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </CollapsibleGroup>
+
+                  <CollapsibleGroup title="Call actions and outcomes" count={staffActivityCalls.length}>
+                    {staffActivityCalls.length === 0 ? (
+                      <p className="text-xs text-gray-500">No call records have been logged by this staff member.</p>
+                    ) : (
+                      <div className="space-y-3">
+                        <div className="crm-colorful-list space-y-2">
+                          <h3 className="text-sm font-bold text-gray-900">Call action items</h3>
+                          {Object.entries(callActionCounts).map(([actionItem, count]) => (
+                            <div key={actionItem} className="crm-color-card flex items-center justify-between gap-3 rounded-xl border px-4 py-3 text-sm">
+                              <span className="font-semibold text-blue-800">{actionItem}</span>
+                              <span className="font-bold text-blue-800">{count}</span>
+                            </div>
+                          ))}
+                        </div>
+                        <div className="crm-colorful-list space-y-2">
+                          <h3 className="text-sm font-bold text-gray-900">Outcomes</h3>
+                          {Object.entries(callOutcomeCounts).map(([outcome, count]) => (
+                            <div key={outcome} className="crm-color-card flex items-center justify-between gap-3 rounded-xl border px-4 py-3 text-sm">
+                              <span className="font-semibold text-purple-800">{outcome}</span>
+                              <span className="font-bold text-purple-800">{count}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </CollapsibleGroup>
+
+                  <CollapsibleGroup title="Current assignments" count={selectedStaffContacts.length}>
+                    {selectedStaffContacts.length === 0 ? (
+                      <p className="text-xs text-gray-500">No current assignments.</p>
+                    ) : (
+                      <div className="crm-colorful-list space-y-2">
+                        {selectedStaffContacts.map((contact) => (
+                          <article key={contact.id} className="crm-color-card min-w-0 rounded-xl border p-3">
+                            <h4 className="break-words text-sm font-semibold text-gray-900">{contact.name}</h4>
+                            <p className="mt-1 text-xs text-gray-500">{contact.category} · {contact.zone}</p>
+                            <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-xs">
+                              <span className="rounded-full bg-gray-100 px-2.5 py-1 font-semibold text-gray-700">
+                                {contact.current_status}
+                              </span>
+                              <span className="font-mono text-gray-600">{contact.phone_raw}</span>
+                            </div>
+                            {contact.next_follow_up_at && (
+                              <p className="mt-2 text-xs text-blue-700">
+                                Follow-up: {new Date(contact.next_follow_up_at).toLocaleString("en-IN")}
+                              </p>
+                            )}
+                          </article>
+                        ))}
+                      </div>
+                    )}
+                  </CollapsibleGroup>
+
+                  <CollapsibleGroup title="Call history" count={staffActivityCalls.length}>
+                    {staffActivityCalls.length === 0 ? (
+                      <p className="text-xs text-gray-500">No call history.</p>
+                    ) : (
+                      <div className="crm-colorful-list space-y-2">
+                        {staffActivityCalls.map((call) => {
+                          const contact = contacts.find((item) => item.id === call.contact_id);
+                          return (
+                            <article key={call.id} className="crm-color-card rounded-xl border p-3">
+                              <div className="flex flex-wrap items-start justify-between gap-2">
+                                <div>
+                                  <h4 className="text-sm font-semibold text-gray-900">
+                                    {contact?.name || "Contact no longer available"}
+                                  </h4>
+                                  {contact && <p className="mt-0.5 text-xs text-gray-500">{contact.category} · {contact.zone} · {contact.phone_raw}</p>}
+                                </div>
+                                <time className="text-xs text-gray-500">
+                                  {new Date(call.called_at).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })}
+                                </time>
+                              </div>
+                              <div className="mt-2 flex flex-wrap gap-2 text-xs">
+                                <span className="rounded-full bg-blue-50 px-2.5 py-1 font-semibold text-blue-800">
+                                  {normalizeCallActionItem(call.status)}
+                                </span>
+                                {call.action && (
+                                  <span className="rounded-full bg-purple-50 px-2.5 py-1 font-semibold text-purple-800">
+                                    {normalizeCallOutcome(call.action)}
+                                  </span>
+                                )}
+                              </div>
+                              {call.notes && <p className="mt-2 whitespace-pre-wrap text-xs text-gray-600">{call.notes}</p>}
+                            </article>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </CollapsibleGroup>
+                </>
+              )}
+            </div>
+          </section>
+        </div>
+      )}
 
       {selectedMetric && (
         <div
@@ -584,7 +1044,7 @@ export const AdminDashboard: React.FC = () => {
                   {selectedMetric === "callsToday"
                     ? "Call activity recorded today"
                     : selectedMetric === "orders"
-                      ? "Call records marked as Order Placed"
+                      ? "Call records with the Order Placed outcome"
                       : `${metricContacts.length} matching ${metricContacts.length === 1 ? "contact" : "contacts"}`}
                 </p>
               </div>
@@ -610,12 +1070,13 @@ export const AdminDashboard: React.FC = () => {
                 metricCalls.length === 0 ? (
                   <p className="py-10 text-center text-sm text-gray-500">No call records found.</p>
                 ) : (
-                  <div className="space-y-3">
-                    {metricCalls.map((call) => {
+                  <CollapsibleGroup title={metricTitle[selectedMetric]} count={metricCalls.length}>
+                    <div className="crm-colorful-list space-y-2">
+                      {metricCalls.map((call) => {
                       const contact = contacts.find((item) => item.id === call.contact_id);
                       const caller = staff.find((member) => member.id === call.user_id);
                       return (
-                        <article key={call.id} className="rounded-xl border border-gray-200 p-3 sm:p-4">
+                        <article key={call.id} className="crm-color-card rounded-xl border p-3 sm:p-4">
                           <div className="flex flex-col justify-between gap-2 sm:flex-row sm:items-start">
                             <div>
                               <h3 className="font-semibold text-gray-900">
@@ -636,11 +1097,11 @@ export const AdminDashboard: React.FC = () => {
                           </div>
                           <div className="mt-3 flex flex-wrap gap-2 text-xs">
                             <span className="rounded-full bg-gray-100 px-2.5 py-1 font-semibold text-gray-700">
-                              {call.status}
+                              {normalizeCallActionItem(call.status)}
                             </span>
                             {call.action && (
                               <span className="rounded-full bg-purple-50 px-2.5 py-1 font-semibold text-purple-700">
-                                {call.action}
+                                {normalizeCallOutcome(call.action)}
                               </span>
                             )}
                             {caller && <span className="px-1 py-1 text-gray-500">By {caller.name}</span>}
@@ -648,78 +1109,43 @@ export const AdminDashboard: React.FC = () => {
                           {call.notes && <p className="mt-2 whitespace-pre-wrap text-sm text-gray-700">{call.notes}</p>}
                         </article>
                       );
-                    })}
-                  </div>
+                      })}
+                    </div>
+                  </CollapsibleGroup>
                 )
               ) : metricContacts.length === 0 ? (
                 <p className="py-10 text-center text-sm text-gray-500">No matching contacts found.</p>
               ) : (
-                <>
-                <div className="hidden overflow-x-auto lg:block">
-                  <table className="w-full min-w-[680px] text-left text-sm">
-                    <thead className="border-b border-gray-200 text-xs uppercase text-gray-500">
-                      <tr>
-                        <th className="px-3 py-2">Contact</th>
-                        <th className="px-3 py-2">Category / Zone</th>
-                        <th className="px-3 py-2">Status</th>
-                        <th className="px-3 py-2">Assigned to</th>
-                        <th className="px-3 py-2">Follow-up</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-100">
-                      {metricContacts.map((contact) => {
-                        const assignedMember = staff.find((member) => member.id === contact.assigned_to);
-                        return (
-                          <tr key={contact.id}>
-                            <td className="px-3 py-3">
-                              <p className="font-semibold text-gray-900">{contact.name}</p>
-                              <p className="text-xs text-gray-500">{contact.phone_raw}</p>
-                            </td>
-                            <td className="px-3 py-3 text-gray-700">
-                              {contact.category} · {contact.zone}
-                            </td>
-                            <td className="px-3 py-3 text-gray-700">{contact.current_status}</td>
-                            <td className="px-3 py-3 text-gray-700">{assignedMember?.name || "Unassigned"}</td>
-                            <td className="px-3 py-3 text-gray-700">
-                              {contact.next_follow_up_at
-                                ? new Date(contact.next_follow_up_at).toLocaleString("en-IN", {
-                                    dateStyle: "medium",
-                                    timeStyle: "short",
-                                  })
-                                : "—"}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-                <div className="space-y-3 lg:hidden">
-                  {metricContacts.map((contact) => {
+                <CollapsibleGroup title={metricTitle[selectedMetric]} count={metricContacts.length}>
+                  <div className="crm-colorful-list space-y-2">
+                    {metricContacts.map((contact) => {
                     const assignedMember = staff.find((member) => member.id === contact.assigned_to);
                     return (
-                      <article key={contact.id} className="min-w-0 rounded-xl border border-gray-200 p-3">
-                        <h3 className="break-words text-sm font-semibold text-gray-900">{contact.name}</h3>
-                        <a
-                          href={`tel:+91${contact.phone_normalized}`}
-                          className="mt-1 inline-block min-h-8 py-1 font-mono text-sm text-emerald-800 underline underline-offset-2"
-                        >
-                          {contact.phone_raw}
-                        </a>
-                        <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-2 text-xs">
+                      <article key={contact.id} className="crm-color-card min-w-0 rounded-xl border p-3">
+                        <div className="flex min-w-0 flex-wrap items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <h3 className="break-words text-sm font-semibold text-gray-900">{contact.name}</h3>
+                            <a
+                              href={`tel:+91${contact.phone_normalized}`}
+                              className="mt-1 inline-block min-h-8 py-1 font-mono text-sm text-emerald-800 underline underline-offset-2"
+                            >
+                              {contact.phone_raw}
+                            </a>
+                          </div>
+                          <span className="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-semibold text-gray-700">
+                            {contact.current_status}
+                          </span>
+                        </div>
+                        <dl className="mt-2 grid grid-cols-1 gap-y-2 text-xs sm:grid-cols-2">
                           <div className="min-w-0">
                             <dt className="text-gray-500">Category / Zone</dt>
                             <dd className="break-words font-medium text-gray-800">{contact.category} · {contact.zone}</dd>
                           </div>
                           <div className="min-w-0">
-                            <dt className="text-gray-500">Status</dt>
-                            <dd className="break-words font-medium text-gray-800">{contact.current_status}</dd>
-                          </div>
-                          <div className="min-w-0">
                             <dt className="text-gray-500">Assigned to</dt>
                             <dd className="break-words font-medium text-gray-800">{assignedMember?.name || "Unassigned"}</dd>
                           </div>
-                          <div className="min-w-0">
+                          <div className="min-w-0 sm:col-span-2">
                             <dt className="text-gray-500">Follow-up</dt>
                             <dd className="break-words font-medium text-gray-800">
                               {contact.next_follow_up_at
@@ -733,9 +1159,9 @@ export const AdminDashboard: React.FC = () => {
                         </dl>
                       </article>
                     );
-                  })}
-                </div>
-                </>
+                    })}
+                  </div>
+                </CollapsibleGroup>
               )}
             </div>
           </section>

@@ -5,7 +5,10 @@ import { StaffCallingDashboard, ContactItem } from "./StaffCallingDashboard";
 import { CallLogPayload } from "./ContactCallingCard";
 import { HistoryItem } from "./CustomerHistoryDrawer";
 import { SignInPage } from "./SignInPage";
+import { ThemeToggle } from "./ThemeToggle";
+import { useTheme } from "./useTheme";
 import { supabase } from "./supabaseClient";
+import { normalizeCallActionItem, normalizeCallOutcome } from "./callOptions";
 
 interface UserProfile {
   id: string;
@@ -15,6 +18,7 @@ interface UserProfile {
 }
 
 export const App: React.FC = () => {
+  const { theme, toggleTheme } = useTheme();
   const [session, setSession] = useState<Session | null>(null);
   const [isAuthLoading, setIsAuthLoading] = useState(true);
   const [profile, setProfile] = useState<UserProfile | null>(null);
@@ -93,7 +97,12 @@ export const App: React.FC = () => {
       .select("*")
       .order("created_at", { ascending: false });
     if (error) throw error;
-    if (data) setContacts(data as ContactItem[]);
+    if (data) {
+      setContacts(data.map((contact) => ({
+        ...contact,
+        current_status: normalizeCallActionItem(contact.current_status),
+      })) as ContactItem[]);
+    }
   };
 
   useEffect(() => {
@@ -120,7 +129,7 @@ export const App: React.FC = () => {
     const { error: contactUpdateError } = await supabase
       .from("contacts")
       .update({
-        current_status: payload.action === "Order Placed" ? "Order Placed" : payload.status,
+        current_status: payload.status,
         next_follow_up_at: payload.followUpDate || null,
       })
       .eq("id", payload.contactId);
@@ -144,8 +153,8 @@ export const App: React.FC = () => {
       type: "call",
       timestamp: c.called_at,
       userName: "Sales Rep",
-      status: c.status,
-      action: c.action,
+      status: normalizeCallActionItem(c.status),
+      action: normalizeCallOutcome(c.action) || undefined,
       notes: c.notes,
     }));
 
@@ -204,7 +213,16 @@ export const App: React.FC = () => {
     return <main className="min-h-screen bg-gray-50 grid place-items-center text-sm text-gray-600">Loading...</main>;
   }
 
-  if (!session) return <SignInPage onSignIn={handleSignIn} onSignUp={handleSignUp} />;
+  if (!session) {
+    return (
+      <SignInPage
+        onSignIn={handleSignIn}
+        onSignUp={handleSignUp}
+        theme={theme}
+        onToggleTheme={toggleTheme}
+      />
+    );
+  }
 
   if (isProfileLoading) {
     return <main className="min-h-screen bg-gray-50 grid place-items-center text-sm text-gray-600">Loading profile...</main>;
@@ -231,8 +249,9 @@ export const App: React.FC = () => {
     <div className="min-w-0 w-full overflow-x-clip">
       <nav className="flex min-w-0 flex-wrap items-center justify-between gap-2 bg-gray-900 px-3 py-2 text-[11px] text-white sm:px-4 sm:text-xs">
         <span className="min-w-0 font-bold tracking-wide">{profile.role === "admin" ? "ADMIN" : "STAFF"} · SALES CALL TRACKER</span>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3">
           <span className="hidden sm:inline text-gray-300">{profile.name || session.user.email}</span>
+          <ThemeToggle theme={theme} onToggle={toggleTheme} darkHeader />
           <button onClick={handleSignOut} className="min-h-10 rounded bg-gray-700 px-3 py-2 font-semibold hover:bg-gray-600">
             Sign out
           </button>
@@ -250,6 +269,7 @@ export const App: React.FC = () => {
       ) : (
         <StaffCallingDashboard
           contacts={contacts}
+          staffId={session.user.id}
           onSaveOutcome={handleSaveOutcome}
           onFetchHistory={handleFetchHistory}
         />

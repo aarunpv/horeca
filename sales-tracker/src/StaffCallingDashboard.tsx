@@ -65,42 +65,52 @@ export const StaffCallingDashboard: React.FC<StaffDashboardProps> = ({
 
   return (
     <div className="min-h-screen bg-gray-50 pb-20">
-      <div className="sticky top-0 z-30 bg-white border-b border-gray-200 px-4 pt-3 pb-2 shadow-xs">
-        <div className="flex items-center justify-between mb-2">
+      <header className="sticky top-0 z-30 bg-white border-b border-gray-200 px-4 py-3 shadow-xs">
+        <div className="mx-auto flex max-w-7xl items-center justify-between gap-3">
           <h1 className="text-base font-bold text-gray-900">Calling Queue</h1>
           <span className="text-xs bg-emerald-100 text-emerald-800 font-semibold px-2 py-0.5 rounded-full">
             {filteredContacts.length} Leads
           </span>
         </div>
-
-        <input
-          type="search"
-          placeholder="Search name, zone, or phone..."
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          className="w-full px-3 py-2 text-xs bg-gray-100 border border-transparent rounded-lg focus:bg-white focus:border-gray-300 outline-none transition"
-        />
-
-        <div className="flex gap-2 overflow-x-auto no-scrollbar pt-2 pb-1">
-          {filterTabs.map((tab) => (
-            <button
-              key={tab}
-              onClick={() => setSelectedFilter(tab)}
-              className={`whitespace-nowrap px-3 py-1 rounded-full text-xs font-semibold transition ${
-                selectedFilter === tab
-                  ? "bg-gray-900 text-white shadow-xs"
-                  : "bg-white text-gray-600 border border-gray-200"
-              }`}
-            >
-              {tab}
-            </button>
-          ))}
+        <div className="mx-auto mt-3 max-w-7xl">
+          <input
+            type="search"
+            placeholder="Search name, zone, or phone..."
+            aria-label="Search contacts by name, zone, or phone"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full px-3 py-2 text-sm bg-gray-100 border border-transparent rounded-lg focus:bg-white focus:border-gray-300 outline-none transition"
+          />
         </div>
-      </div>
+      </header>
 
-      <div className="p-4 space-y-3 max-w-md mx-auto">
+      <div className="mx-auto flex max-w-7xl items-start gap-3 p-3 sm:gap-5 sm:p-5">
+        <aside className="sticky top-24 w-28 shrink-0 rounded-xl border border-gray-200 bg-white p-2 shadow-xs sm:w-48 sm:p-3">
+          <h2 className="mb-2 px-2 text-[10px] font-bold uppercase tracking-wider text-gray-400 sm:text-xs">
+            Contacts
+          </h2>
+          <nav aria-label="Filter contacts" className="space-y-1">
+            {filterTabs.map((tab) => (
+              <button
+                key={tab}
+                type="button"
+                aria-current={selectedFilter === tab ? "page" : undefined}
+                onClick={() => setSelectedFilter(tab)}
+                className={`w-full rounded-lg px-2 py-2 text-left text-xs font-semibold transition sm:px-3 sm:text-sm ${
+                  selectedFilter === tab
+                    ? "bg-emerald-800 text-white shadow-xs"
+                    : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
+                }`}
+              >
+                {tab}
+              </button>
+            ))}
+          </nav>
+        </aside>
+
+      <main className="min-w-0 flex-1 space-y-3">
         {filteredContacts.length === 0 ? (
-          <div className="text-center py-12 text-gray-400 text-xs">
+          <div className="rounded-xl border border-gray-200 bg-white py-12 text-center text-xs text-gray-400">
             No contacts match the selected criteria.
           </div>
         ) : (
@@ -154,6 +164,7 @@ export const StaffCallingDashboard: React.FC<StaffDashboardProps> = ({
             </div>
           ))
         )}
+      </main>
       </div>
 
       {activeContact && (

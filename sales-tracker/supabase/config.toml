@@ -4,6 +4,7 @@ project_id = "horeca-sales-tracker"
 enabled = true
 site_url = "env(SUPABASE_AUTH_SITE_URL)"
 additional_redirect_urls = [
+  "https://horeca-bice.vercel.app",
   "http://localhost:5173",
   "http://127.0.0.1:5173",
 ]

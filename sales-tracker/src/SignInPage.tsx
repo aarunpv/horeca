@@ -7,9 +7,16 @@ interface SignInPageProps {
   onSignUp: (name: string, email: string, password: string) => Promise<void>;
   theme: Theme;
   onToggleTheme: () => void;
+  notice?: string | null;
 }
 
-export const SignInPage: React.FC<SignInPageProps> = ({ onSignIn, onSignUp, theme, onToggleTheme }) => {
+export const SignInPage: React.FC<SignInPageProps> = ({
+  onSignIn,
+  onSignUp,
+  theme,
+  onToggleTheme,
+  notice,
+}) => {
   const [mode, setMode] = useState<"sign-in" | "sign-up">("sign-in");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -53,6 +60,7 @@ export const SignInPage: React.FC<SignInPageProps> = ({ onSignIn, onSignUp, them
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-5 p-8">
+          {notice && <p role="status" className="text-sm text-amber-800">{notice}</p>}
           {mode === "sign-up" && (
             <div>
               <label htmlFor="name" className="mb-1.5 block text-sm font-semibold text-gray-800">

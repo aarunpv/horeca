@@ -502,31 +502,36 @@ export const AdminDashboard: React.FC = () => {
       skipEmptyLines: true,
       complete: async (results) => {
         let importCommitted = false;
+        let logWarning = "";
         try {
           const { validContacts, inFileDataDuplicates, invalidRows } = processCsvBatch(results.data);
-          await writeEventLogs([
-            ...invalidRows.map(({ row, reason, recordNumber }) => ({
-              event_category: "error" as const,
-              action: "csv.row.skipped",
-              message: reason,
-              details: {
-                file_name: file.name,
-                csv_record: recordNumber,
-                values: row,
-              },
-            })),
-            ...results.errors.map((error) => ({
-              event_category: "error" as const,
-              action: "csv.parse.warning",
-              message: error.message,
-              details: {
-                file_name: file.name,
-                row: error.row,
-                code: error.code,
-                type: error.type,
-              },
-            })),
-          ]);
+          try {
+            await writeEventLogs([
+              ...invalidRows.map(({ row, reason, recordNumber }) => ({
+                event_category: "error" as const,
+                action: "csv.row.skipped",
+                message: reason,
+                details: {
+                  file_name: file.name,
+                  csv_record: recordNumber,
+                  values: row,
+                },
+              })),
+              ...results.errors.map((error) => ({
+                event_category: "error" as const,
+                action: "csv.parse.warning",
+                message: error.message,
+                details: {
+                  file_name: file.name,
+                  row: error.row,
+                  code: error.code,
+                  type: error.type,
+                },
+              })),
+            ]);
+          } catch (error: unknown) {
+            logWarning = ` Persistent import error logging is unavailable: ${error instanceof Error ? error.message : "Unknown logging error."}`;
+          }
           const allContacts = [...validContacts, ...inFileDataDuplicates];
           const contactsByPhone = new Map<string, NormalizedContact[]>();
           allContacts.forEach((contact) => {
@@ -558,21 +563,26 @@ export const AdminDashboard: React.FC = () => {
             setDuplicateChoices(
               Object.fromEntries(duplicateGroups.map(({ phone }) => [phone, "merge" as DuplicateChoice]))
             );
+            if (logWarning) setUploadFeedback(`Review duplicate rows below.${logWarning}`);
           } else {
             if (uniqueContacts.length > 0) await insertContactsBatch(uniqueContacts);
             importCommitted = true;
-            await writeEventLogs([{
-              event_category: "audit",
-              action: "csv.import.completed",
-              message: `Imported ${uniqueContacts.length} contacts from ${file.name}.`,
-              details: {
-                file_name: file.name,
-                imported_count: uniqueContacts.length,
-                invalid_count: invalidRows.length,
-                duplicate_group_count: 0,
-              },
-            }]);
-            setUploadFeedback(`Import complete: ${uniqueContacts.length} added, ${invalidRows.length} invalid rows skipped.`);
+            try {
+              await writeEventLogs([{
+                event_category: "audit",
+                action: "csv.import.completed",
+                message: `Imported ${uniqueContacts.length} contacts from ${file.name}.`,
+                details: {
+                  file_name: file.name,
+                  imported_count: uniqueContacts.length,
+                  invalid_count: invalidRows.length,
+                  duplicate_group_count: 0,
+                },
+              }]);
+            } catch (error: unknown) {
+              logWarning = ` Persistent import logging is unavailable: ${error instanceof Error ? error.message : "Unknown logging error."}`;
+            }
+            setUploadFeedback(`Import complete: ${uniqueContacts.length} added, ${invalidRows.length} invalid rows skipped.${logWarning}`);
             await loadData();
           }
         } catch (err: unknown) {
@@ -663,22 +673,27 @@ export const AdminDashboard: React.FC = () => {
       if (contactsToInsert.length > 0) await insertContactsBatch(contactsToInsert);
       importCommitted = true;
       const skippedDuplicateCount = duplicateEvents.filter((event) => event.event_category === "error").length;
-      await writeEventLogs([
-        ...duplicateEvents,
-        {
-          event_category: "audit",
-          action: "csv.import.completed",
-          message: `Imported ${contactsToInsert.length} contacts from ${pendingImport.fileName}.`,
-          details: {
-            file_name: pendingImport.fileName,
-            imported_count: contactsToInsert.length,
-            duplicate_group_count: pendingImport.duplicateGroups.length,
-            duplicate_rows_skipped: skippedDuplicateCount,
+      let logWarning = "";
+      try {
+        await writeEventLogs([
+          ...duplicateEvents,
+          {
+            event_category: "audit",
+            action: "csv.import.completed",
+            message: `Imported ${contactsToInsert.length} contacts from ${pendingImport.fileName}.`,
+            details: {
+              file_name: pendingImport.fileName,
+              imported_count: contactsToInsert.length,
+              duplicate_group_count: pendingImport.duplicateGroups.length,
+              duplicate_rows_skipped: skippedDuplicateCount,
+            },
           },
-        },
-      ]);
+        ]);
+      } catch (error: unknown) {
+        logWarning = ` Persistent import logging is unavailable: ${error instanceof Error ? error.message : "Unknown logging error."}`;
+      }
       setUploadFeedback(
-        `Import complete: ${contactsToInsert.length} added, duplicate rows skipped: ${skippedDuplicateCount}.`
+        `Import complete: ${contactsToInsert.length} added, duplicate rows skipped: ${skippedDuplicateCount}.${logWarning}`
       );
       setPendingImport(null);
       setDuplicateChoices({});

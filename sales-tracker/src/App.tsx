@@ -25,6 +25,7 @@ export const App: React.FC = () => {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [isProfileLoading, setIsProfileLoading] = useState(false);
   const [appError, setAppError] = useState<string | null>(null);
+  const [authNotice, setAuthNotice] = useState<string | null>(null);
   const [contacts, setContacts] = useState<ContactItem[]>([]);
 
   useEffect(() => {
@@ -203,9 +204,10 @@ export const App: React.FC = () => {
         details: { email: data.user.email || email },
       }]);
       setAppError(null);
+      setAuthNotice(null);
     } catch (logError: unknown) {
-      setAppError(
-        `Signed in, but the login audit could not be saved: ${logError instanceof Error ? logError.message : "Unknown logging error."}`
+      setAuthNotice(
+        `Signed in, but login auditing is unavailable: ${logError instanceof Error ? logError.message : "Unknown logging error."}`
       );
     }
   };
@@ -226,6 +228,7 @@ export const App: React.FC = () => {
   const handleSignOut = async () => {
     if (!supabase) return;
     setAppError(null);
+    let auditWarning: string | null = null;
     try {
       await writeEventLogs([{
         event_category: "audit",
@@ -237,13 +240,15 @@ export const App: React.FC = () => {
         },
       }]);
     } catch (logError: unknown) {
-      setAppError(
-        `Sign-out was not completed because the audit event could not be saved: ${logError instanceof Error ? logError.message : "Unknown logging error."}`
-      );
-      return;
+      auditWarning =
+        `You were signed out, but the logout audit could not be saved: ${logError instanceof Error ? logError.message : "Unknown logging error."}`;
     }
     const { error } = await supabase.auth.signOut();
-    if (error) setAppError(error.message);
+    if (error) {
+      setAppError(error.message);
+      return;
+    }
+    setAuthNotice(auditWarning);
   };
 
   if (!supabase) {
@@ -270,6 +275,7 @@ export const App: React.FC = () => {
         onSignUp={handleSignUp}
         theme={theme}
         onToggleTheme={toggleTheme}
+        notice={authNotice}
       />
     );
   }
@@ -307,6 +313,12 @@ export const App: React.FC = () => {
           </button>
         </div>
       </nav>
+
+      {authNotice && (
+        <div role="status" className="border-b border-amber-300 bg-amber-50 px-4 py-2 text-sm text-amber-950">
+          {authNotice}
+        </div>
+      )}
 
       {appError && (
         <div role="alert" className="border-b border-red-200 bg-red-50 px-4 py-2 text-sm text-red-800">

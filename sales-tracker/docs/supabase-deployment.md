@@ -42,6 +42,8 @@ The GitHub Actions workflow runs automatically when files under `sales-tracker/s
 
 If the linking step fails, verify the three secret names, their values, and that the database password belongs to the same project ref. If migrations fail, read the workflow log before retrying; do not reset the database as a troubleshooting shortcut.
 
+If project linking reports **Invalid access token**, replace the `SUPABASE_ACCESS_TOKEN` repository secret with a current Supabase personal access token, then rerun **Deploy Supabase**. Until the workflow succeeds, new migrations such as `event_logs` are not available to the app.
+
 The config enables email/password signup and disables email confirmation. The signup trigger automatically creates new profiles with the `staff` role. Staff have no admin privileges unless their role is changed through the trusted admin procedure below.
 
 ## Promote the first admin without the Supabase portal
